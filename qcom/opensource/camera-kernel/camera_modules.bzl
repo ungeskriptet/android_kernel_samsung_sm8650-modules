@@ -18,17 +18,17 @@ def _define_module(target, variant, lunch_target=None):
         ":camera_headers",
         ":camera_banner",
         "//msm-kernel:all_headers",
-        "//vendor/qcom/opensource/securemsm-kernel:smcinvoke_kernel_headers",
-        "//vendor/qcom/opensource/securemsm-kernel:smmu_proxy_headers",
-        "//vendor/qcom/opensource/securemsm-kernel:{}_smcinvoke_dlkm".format(tv),
-        "//vendor/qcom/opensource/securemsm-kernel:{}_smmu_proxy_dlkm".format(tv),
-        "//vendor/qcom/opensource/mmrm-driver:{}_mmrm_driver".format(tv),
+        "//sm8650-modules/qcom/opensource/securemsm-kernel:smcinvoke_kernel_headers",
+        "//sm8650-modules/qcom/opensource/securemsm-kernel:smmu_proxy_headers",
+        "//sm8650-modules/qcom/opensource/securemsm-kernel:{}_smcinvoke_dlkm".format(tv),
+        "//sm8650-modules/qcom/opensource/securemsm-kernel:{}_smmu_proxy_dlkm".format(tv),
+        "//sm8650-modules/qcom/opensource/mmrm-driver:{}_mmrm_driver".format(tv),
     ]
 
     if target == "pineapple":
         deps.extend([
-            "//vendor/qcom/opensource/synx-kernel:synx_headers",
-            "//vendor/qcom/opensource/synx-kernel:{}_modules".format(tv),
+            "//sm8650-modules/qcom/opensource/synx-kernel:synx_headers",
+            "//sm8650-modules/qcom/opensource/synx-kernel:{}_modules".format(tv),
         ])
 
     ddk_module(

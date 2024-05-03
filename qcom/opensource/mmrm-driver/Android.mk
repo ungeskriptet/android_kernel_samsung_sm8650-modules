@@ -8,7 +8,7 @@ TARGET_MMRM_ENABLE := true
 endif
 
 ifeq ($(TARGET_MMRM_ENABLE),true)
-MMRM_BLD_DIR := $(shell pwd)/vendor/qcom/opensource/mmrm-driver
+MMRM_BLD_DIR := $(shell pwd)/sm8650-modules/qcom/opensource/mmrm-driver
 
 # Build msm-mmrm.ko
 ###########################################################

@@ -11,7 +11,7 @@ $(info camera-kernel: Found msm-mmrm driver, adding symbol dependency! $(CAM_MMR
 ifneq ($(TARGET_BOARD_PLATFORM), pineapple)
 LOCAL_REQUIRED_MODULES  := mmrm-module-symvers
 endif # End of check lanai
-CAM_MMRM_EXTRA_CONFIGS ?= $(realpath $(TOP))/vendor/qcom/opensource/mmrm-driver/config/waipiommrm.conf
+CAM_MMRM_EXTRA_CONFIGS ?= $(realpath $(TOP))/sm8650-modules/qcom/opensource/mmrm-driver/config/waipiommrm.conf
 LOCAL_ADDITIONAL_DEPENDENCIES := $(call intermediates-dir-for,DLKM,mmrm-module-symvers)/Module.symvers
 
 endif # End of check for board platform MMRM_BOARDS
@@ -27,7 +27,7 @@ ifeq ($(call is-board-platform-in-list, $(SYNX_VENDOR_BOARDS)),true)
 CAM_SYNX_EXTRA_SYMBOLS ?= $(realpath $(TOP))/$(call intermediates-dir-for,DLKM,synx-driver-symvers)/synx-driver-symvers
 $(info camera-kernel: Found synx driver, adding symbol dependency! $(CAM_SYNX_EXTRA_SYMBOLS))
 LOCAL_REQUIRED_MODULES    := synx-driver-symvers
-CAM_SYNX_EXTRA_CONFIGS ?= $(realpath $(TOP))/vendor/qcom/opensource/synx-kernel/config/pineapplesynx.conf
+CAM_SYNX_EXTRA_CONFIGS ?= $(realpath $(TOP))/sm8650-modules/qcom/opensource/synx-kernel/config/pineapplesynx.conf
 LOCAL_ADDITIONAL_DEPENDENCIES += $(call intermediates-dir-for,DLKM,synx-driver-symvers)/synx-driver-symvers
 
 endif # End of check for board platform SYNX_VENDOR_BOARDS
@@ -41,7 +41,7 @@ ifeq ($(call is-board-platform-in-list, $(SMCINVOKE_DLKM_BOARDS)),true)
 SMCINVOKE_EXTRA_SYMBOLS ?= $(realpath $(TOP))/$(call intermediates-dir-for,DLKM,smcinvoke_dlkm.ko)/Module.symvers
 $(info camera-kernel: Found smcinvoke driver, adding symbol dependency! $(SMCINVOKE_EXTRA_SYMBOLS))
 LOCAL_REQUIRED_MODULES  += smcinvoke_dlkm.ko
-CAM_SMCINOKE_EXTRA_CONFIGS ?= $(realpath $(TOP))/vendor/qcom/opensource/securemsm-kernel/config/sec-kernel_defconfig_smcinvoke.conf
+CAM_SMCINOKE_EXTRA_CONFIGS ?= $(realpath $(TOP))/sm8650-modules/qcom/opensource/securemsm-kernel/config/sec-kernel_defconfig_smcinvoke.conf
 LOCAL_ADDITIONAL_DEPENDENCIES += $(call intermediates-dir-for,DLKM,smcinvoke_dlkm.ko)/Module.symvers
 
 endif # End of check for board platform SMCINVOKE_DLKM_BOARDS
@@ -55,7 +55,7 @@ ifeq ($(call is-board-platform-in-list, $(SMMU_PROXY_DLKM_BOARDS)),true)
 SMMU_PROXY_EXTRA_SYMBOLS ?= $(realpath $(TOP))/$(call intermediates-dir-for,DLKM,smmu_proxy_dlkm.ko)/Module.symvers
 $(info camera-kernel: Found smmu proxy driver, adding symbol dependency! $(SMMU_PROXY_EXTRA_SYMBOLS))
 LOCAL_REQUIRED_MODULES  += smmu_proxy_dlkm.ko
-CAM_SMMU_PROXY_EXTRA_CONFIGS ?= $(realpath $(TOP))/vendor/qcom/opensource/securemsm-kernel/config/sec-kernel_defconfig_smmu_proxy.conf
+CAM_SMMU_PROXY_EXTRA_CONFIGS ?= $(realpath $(TOP))/sm8650-modules/qcom/opensource/securemsm-kernel/config/sec-kernel_defconfig_smmu_proxy.conf
 LOCAL_ADDITIONAL_DEPENDENCIES += $(call intermediates-dir-for,DLKM,smmu_proxy_dlkm.ko)/Module.symvers
 
 endif # End of check for board platform SMMU_PROXY_DLKM_BOARDS
