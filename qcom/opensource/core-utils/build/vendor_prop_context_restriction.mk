@@ -1,5 +1,5 @@
 
-BOARD_OPENSOURCE_DIR ?= vendor/qcom/opensource
+BOARD_OPENSOURCE_DIR ?= sm8650-modules/qcom/opensource
 .PHONY:vendor_prop_context_restriction_enforcement
 
 vendor_prop_context_restriction_enforcement:

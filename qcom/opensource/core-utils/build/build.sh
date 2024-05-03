@@ -39,7 +39,7 @@
 #
 #  source build/envsetup.sh
 #  lunch <target>-userdebug
-#  ./vendor/qcom/opensource/core-utils/build/build.sh <make options>
+#  ./sm8650-modules/qcom/opensource/core-utils/build/build.sh <make options>
 #
 # Note: For QSSI targets, this script cannot be used to compile individual images
 #
@@ -49,7 +49,7 @@
 ###########################
 # build.sh supports '--version' option, returns the version number.
 # Version number is based on the features/commands supported by it.
-# The file - './vendor/qcom/opensource/core-utils/build/build.sh.versioned' indicates that build.sh
+# The file - './sm8650-modules/qcom/opensource/core-utils/build/build.sh.versioned' indicates that build.sh
 # supports versioning. So, it's required to first check for this file's existence before
 # calling with '--version', since this versioning support didn't exist from the beginning of this script.
 #

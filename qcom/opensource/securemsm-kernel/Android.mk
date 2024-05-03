@@ -42,7 +42,7 @@ endif #TARGET_USES_GY
 
 LOCAL_PATH := $(call my-dir)
 
-VENDOR_OPENSOURCE_DIR ?= vendor/qcom/opensource
+VENDOR_OPENSOURCE_DIR ?= sm8650-modules/qcom/opensource
 VENDOR_COMMON_DIR ?= device/qcom/common
 
 DLKM_DIR := $(TOP)/$(VENDOR_COMMON_DIR)/dlkm

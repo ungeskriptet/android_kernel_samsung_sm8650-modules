@@ -21,7 +21,7 @@ LOCAL_SRC_FILES := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
 
 #path from build top to the core directory
 DATARMNET_CORE_PATH := datarmnet/core
-RMNET_CORE_PATH := vendor/qcom/opensource/$(DATARMNET_CORE_PATH)
+RMNET_CORE_PATH := sm8650-modules/qcom/opensource/$(DATARMNET_CORE_PATH)
 DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 #absolute path to the build directory. Can't use $(TOP) here since
 #that resolves to ., and we pass this to Kbuild, where . is different
@@ -36,7 +36,7 @@ KBUILD_OPTIONS_GKI += RMNET_CORE_PATH=$(RMNET_CORE_PATH)/gki
 
 #rmnet shs path
 DATARMNET_SHS_PATH := datarmnet-ext/shs
-RMNET_SHS_PATH := vendor/qcom/opensource/$(DATARMNET_SHS_PATH)
+RMNET_SHS_PATH := sm8650-modules/qcom/opensource/$(DATARMNET_SHS_PATH)
 RMNET_SHS_INC_DIR := $(abspath $(RMNET_SHS_PATH))
 
 #Must be built after the core rmnet and shs module

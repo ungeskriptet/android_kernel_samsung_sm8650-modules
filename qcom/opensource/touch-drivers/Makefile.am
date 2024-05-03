@@ -1,5 +1,5 @@
 
-TOUCH_ROOT=$(ROOTDIR)vendor/qcom/opensource/touch-drivers
+TOUCH_ROOT=$(ROOTDIR)sm8650-modules/qcom/opensource/touch-drivers
 KBUILD_OPTIONS := TOUCH_ROOT=$(TOUCH_ROOT) CONFIG_MSM_TOUCH=m
 
 ifeq ($(TARGET_SUPPORT),genericarmv8)

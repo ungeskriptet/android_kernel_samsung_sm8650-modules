@@ -11,7 +11,7 @@ DLKM_DIR   := device/qcom/common/dlkm
 
 LOCAL_PATH := $(call my-dir)
 
-DSP_BLD_DIR := $(abspath .)/vendor/qcom/opensource/dsp-kernel
+DSP_BLD_DIR := $(abspath .)/sm8650-modules/qcom/opensource/dsp-kernel
 
 LOCAL_MODULE_DDK_BUILD := true
 

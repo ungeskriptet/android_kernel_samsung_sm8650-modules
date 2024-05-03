@@ -20,7 +20,7 @@ LOCAL_MODULE_PATH := $(KERNEL_MODULES_OUT)
 LOCAL_MODULE := rmnet_wlan.ko
 LOCAL_SRC_FILES := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
 
-BOARD_OPENSOURCE_DIR ?= vendor/qcom/opensource
+BOARD_OPENSOURCE_DIR ?= sm8650-modules/qcom/opensource
 BOARD_COMMON_DIR ?= device/qcom/common
 
 #path from build top to the core directory

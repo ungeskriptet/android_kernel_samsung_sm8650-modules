@@ -14,15 +14,15 @@ def define_modules(target, variant):
     ipam_local_defines = []
     if target != "niobe":
              ipam_deps_list.append(
-              "//vendor/qcom/opensource/datarmnet-ext/mem:{}_rmnet_mem".format(kernel_build_variant),
+              "//sm8650-modules/qcom/opensource/datarmnet-ext/mem:{}_rmnet_mem".format(kernel_build_variant),
              )
              ipam_local_defines.append(
               "CONFIG_IPA_RMNET_MEM=y".format(include_base),
              )
     if target == "niobe":
             ipam_deps_list.extend([
-             "//vendor/qcom/opensource/synx-kernel:synx_headers",
-             "//vendor/qcom/opensource/synx-kernel:{}_modules".format(kernel_build_variant),
+             "//sm8650-modules/qcom/opensource/synx-kernel:synx_headers",
+             "//sm8650-modules/qcom/opensource/synx-kernel:{}_modules".format(kernel_build_variant),
             ])
             ipam_local_defines.append(
               "CONFIG_IPA_RTP=y".format(include_base),

@@ -187,8 +187,8 @@ function start_script_for_interfaces {
     #Find interfaces in workspace
     HIDL_INTERFACES=$(${LS} -d ${ANDROID_BUILD_TOP}/vendor/qcom/*/interfaces)
     add_symlinked_interfaces
-    if [ -f ${ANDROID_BUILD_TOP}/vendor/qcom/opensource/core-utils/build/hidl_gen_version ]; then
-        HIDL_GEN_VERSION=$(${CAT} ${ANDROID_BUILD_TOP}/vendor/qcom/opensource/core-utils/build/hidl_gen_version | ${CUT} -d '=' -f 2)
+    if [ -f ${ANDROID_BUILD_TOP}/sm8650-modules/qcom/opensource/core-utils/build/hidl_gen_version ]; then
+        HIDL_GEN_VERSION=$(${CAT} ${ANDROID_BUILD_TOP}/sm8650-modules/qcom/opensource/core-utils/build/hidl_gen_version | ${CUT} -d '=' -f 2)
     else
         ${ECHO} "HIDL GEN VERSION file doesn't Exist.Exiting..."
         return 1;

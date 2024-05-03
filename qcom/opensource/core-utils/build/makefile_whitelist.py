@@ -27,7 +27,7 @@
 #
 
 FAILED_FILEPATHS_WHITELIST = {
-    "vendor/qcom/opensource/audio-hal/primary-hal/configs/qssi/qssi.mk",
+    "sm8650-modules/qcom/opensource/audio-hal/primary-hal/configs/qssi/qssi.mk",
     "vendor/qcom/proprietary/prebuilt_grease/target/product/qssi/prebuilt.mk",
     "vendor/qcom/proprietary/prebuilt_HY11/target/product/qssi/prebuilt.mk",
     "vendor/qcom/proprietary/prebuilt_HY22/target/product/qssi/prebuilt.mk",
@@ -53,16 +53,16 @@ SHELL_WHITELIST = {
     "device/qcom/common/init/Android.mk",
     "device/qcom/sepolicy/SEPolicy.mk",
     "vendor/qcom/proprietary/ts_firmware-noship/kalama/Android.mk",
-    "vendor/qcom/opensource/touch-drivers/Android.mk",
+    "sm8650-modules/qcom/opensource/touch-drivers/Android.mk",
     "vendor/qcom/proprietary/data-noship/qcril-data-utf/test/utf/Android.mk",
     "vendor/qcom/proprietary/wigig/ftm_flows/libwigig_ftm_flows/Android.mk",
     "vendor/qcom/proprietary/wigig/debug-tools/lib/FlashAcss/Android.mk",
     "vendor/qcom/proprietary/qvr-vndr/samples/apps/camera_test/Android.mk",
-    "vendor/qcom/opensource/eva-kernel/Android.mk",
+    "sm8650-modules/qcom/opensource/eva-kernel/Android.mk",
     "vendor/qcom/proprietary/qvr-vndr/tools/sensors_calibration/Android.mk",
     "vendor/qcom/proprietary/qvr-vndr/service/Android.mk",
     "vendor/qcom/proprietary/qvr-vndr/samples/plugins/eyetracking/Android.mk",
-    "vendor/qcom/opensource/wlan/utils/sigma-dut/Android.mk",
+    "sm8650-modules/qcom/opensource/wlan/utils/sigma-dut/Android.mk",
     "vendor/qcom/proprietary/ts_firmware-noship/sm8150/Android.mk",
     "vendor/qcom/proprietary/wigig/sensing/sensingdaemon/Android.mk",
     "vendor/qcom/proprietary/qvr-vndr/samples/apps/imu_test/Android.mk",
@@ -82,7 +82,7 @@ SHELL_WHITELIST = {
     "vendor/qcom/proprietary/qvr-vndr/services/2dframework/Android.mk",
     "vendor/qcom/proprietary/wigig-noship/location/libaoa/Android.mk",
     "vendor/qcom/proprietary/ac_policy-noship/Android.mk",
-    "vendor/qcom/opensource/wlan/qcacld-3.0/Android.mk",
+    "sm8650-modules/qcom/opensource/wlan/qcacld-3.0/Android.mk",
     "vendor/qcom/proprietary/securemsm-internal/isdbtmm/test/Android.mk",
     "vendor/qcom/proprietary/ts_firmware-noship/taro/Android.mk",
     "vendor/qcom/proprietary/ts_firmware-noship/lahaina/Android.mk",
@@ -101,17 +101,17 @@ SHELL_WHITELIST = {
     "vendor/qcom/proprietary/camx/camx-qsee/qsee-aon/build/android/Android.mk",
     "vendor/qcom/proprietary/video/noship/hfi-test/driver/Android.mk",
     "vendor/qcom/proprietary/chi-cdk/api/generated/build/android/Android.mk",
-    "vendor/qcom/opensource/camera-kernel/Android.mk",
-    "vendor/qcom/opensource/video-driver/Android.mk",
+    "sm8650-modules/qcom/opensource/camera-kernel/Android.mk",
+    "sm8650-modules/qcom/opensource/video-driver/Android.mk",
     "vendor/qcom/proprietary/camx-lib-stats/system/statsalgo/aecxcontrol/build/android/Android.mk",
-    "vendor/qcom/opensource/camera-kernel/include/uapi/Android.mk",
+    "sm8650-modules/qcom/opensource/camera-kernel/include/uapi/Android.mk",
     "vendor/qcom/proprietary/camx/src/mapperutils/formatmapper/build/android/Android.mk",
     "vendor/qcom/proprietary/camx-lib-stats/system/statsalgo/af/build/android/Android.mk",
     "vendor/qcom/proprietary/chi-cdk/oem/qcom/chiusecase/build/android/Android.mk",
     "vendor/qcom/proprietary/camx-lib/system/statsalgo/awb/build/android/Android.mk",
     "vendor/qcom/proprietary/camx/src/core/build/android/Android.mk",
     "vendor/qcom/proprietary/camx/src/mapperutils/extformatutil/build/android/Android.mk",
-    "vendor/qcom/opensource/mmrm-driver/Android.mk",
+    "sm8650-modules/qcom/opensource/mmrm-driver/Android.mk",
     "vendor/qcom/proprietary/prebuilt_grease/target/product/qssi/Android.mk",
     "vendor/qcom/proprietary/prebuilt_grease/target/product/taro/Android.mk",
     "vendor/qcom/proprietary/prebuilt_grease/Android.mk",
@@ -162,10 +162,10 @@ DATETIME_WHITELIST = {
 }
 
 TARGET_PRODUCT_WHITELIST = {
-    "vendor/qcom/opensource/core-utils/build/AndroidBoardCommon.mk",
-    "vendor/qcom/opensource/core-utils/build/QSSI_violators",
-    "vendor/qcom/opensource/core-utils/build/build.sh",
-    "vendor/qcom/opensource/core-utils/build/build_image_standalone.py",
+    "sm8650-modules/qcom/opensource/core-utils/build/AndroidBoardCommon.mk",
+    "sm8650-modules/qcom/opensource/core-utils/build/QSSI_violators",
+    "sm8650-modules/qcom/opensource/core-utils/build/build.sh",
+    "sm8650-modules/qcom/opensource/core-utils/build/build_image_standalone.py",
 }
 
 RECURSIVE_WHITELIST = {
@@ -181,12 +181,12 @@ OVERRIDE_WHITELIST = {
 
 SOONG_WHITELIST = {
     "device/qcom/qssi/base.mk",
-    "vendor/qcom/opensource/commonsys/display/config/display-product-commonsys.mk",
+    "sm8650-modules/qcom/opensource/commonsys/display/config/display-product-commonsys.mk",
     "vendor/qcom/proprietary/commonsys-intf/bluetooth/bt-system-proprietary-product.mk",
 }
 
 FOREACH_WHITELIST = {
-    "vendor/qcom/opensource/core-utils/build/utils.mk",
+    "sm8650-modules/qcom/opensource/core-utils/build/utils.mk",
     "vendor/qcom/proprietary/common-noship/build/generate_extra_images_prop.mk",
     "vendor/qcom/proprietary/common/config/device-vendor-SDM845-pureAOSP.mk",
     "vendor/qcom/proprietary/common/config/device-vendor-qssi.mk",
@@ -194,7 +194,7 @@ FOREACH_WHITELIST = {
 
 MACRO_WHITELIST = {
     "device/qcom/sepolicy/SEPolicy.mk",
-    "vendor/qcom/opensource/commonsys/display/config/display-product-commonsys.mk",
+    "sm8650-modules/qcom/opensource/commonsys/display/config/display-product-commonsys.mk",
     "vendor/qcom/proprietary/common-noship/etc/device-vendor-noship-SDM845-pureAOSP.mk",
     "vendor/qcom/proprietary/common-noship/etc/device-vendor-noship.mk",
     "vendor/qcom/proprietary/common-noship/etc/device-vendor-qssi-noship.mk",

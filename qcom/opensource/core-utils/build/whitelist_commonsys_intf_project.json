@@ -1,9 +1,9 @@
 [
-"vendor/qcom/opensource/core-utils/fwk-detect",
-"vendor/qcom/opensource/commonsys-intf/display/services/config/src",
-"vendor/qcom/opensource/commonsys-intf/display/gralloc",
+"sm8650-modules/qcom/opensource/core-utils/fwk-detect",
+"sm8650-modules/qcom/opensource/commonsys-intf/display/services/config/src",
+"sm8650-modules/qcom/opensource/commonsys-intf/display/gralloc",
 "vendor/qcom/proprietary/commonsys/mm-osal",
-"vendor/qcom/opensource/commonsys-intf/display/libqdmetadata",
+"sm8650-modules/qcom/opensource/commonsys-intf/display/libqdmetadata",
 "vendor/widevine/libwvdrmengine",
 "vendor/google_clockwork/samples/ModernDecompWatchfaces",
 "vendor/widevine/libwvdrmengine/apex",

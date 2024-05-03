@@ -18,7 +18,7 @@ LOCAL_MODULE_PATH := $(KERNEL_MODULES_OUT)
 LOCAL_SRC_FILES := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
 
 DATARMNET_CORE_PATH := datarmnet/core
-RMNET_CORE_PATH := vendor/qcom/opensource/$(DATARMNET_CORE_PATH)
+RMNET_CORE_PATH := sm8650-modules/qcom/opensource/$(DATARMNET_CORE_PATH)
 DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 RMNET_CORE_INC_DIR := $(abspath $(RMNET_CORE_PATH))
 

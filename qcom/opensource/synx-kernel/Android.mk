@@ -8,7 +8,7 @@ TARGET_SYNX_ENABLE := true
 endif
 
 ifeq ($(TARGET_SYNX_ENABLE),true)
-SYNX_BLD_DIR := $(TOP)/vendor/qcom/opensource/synx-kernel
+SYNX_BLD_DIR := $(TOP)/sm8650-modules/qcom/opensource/synx-kernel
 
 
 # Build synx-driver.ko

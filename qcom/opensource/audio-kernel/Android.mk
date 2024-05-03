@@ -28,7 +28,7 @@ endif
 
 ifeq ($(ENABLE_AUDIO_LEGACY_TECHPACK),true)
 include $(call all-subdir-makefiles)
-LOCAL_PATH := vendor/qcom/opensource/audio-kernel
+LOCAL_PATH := sm8650-modules/qcom/opensource/audio-kernel
 endif
 
 # Build/Package only in case of supported target
@@ -38,7 +38,7 @@ ifeq ($(call is-board-platform-in-list,taro kalama bengal pineapple cliffs pitti
 ifneq ($(findstring vendor,$(LOCAL_PATH)),)
 
 ifneq ($(findstring opensource,$(LOCAL_PATH)),)
-	AUDIO_BLD_DIR := $(abspath .)/vendor/qcom/opensource/audio-kernel
+	AUDIO_BLD_DIR := $(abspath .)/sm8650-modules/qcom/opensource/audio-kernel
 endif # opensource
 
 include $(AUDIO_BLD_DIR)/EnableBazel.mk

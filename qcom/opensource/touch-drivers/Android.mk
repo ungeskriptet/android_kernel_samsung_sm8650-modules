@@ -9,7 +9,7 @@ endif
 
 ifeq ($(TOUCH_DLKM_ENABLE),  true)
        TOUCH_SELECT := CONFIG_MSM_TOUCH=m
-       BOARD_OPENSOURCE_DIR ?= vendor/qcom/opensource
+       BOARD_OPENSOURCE_DIR ?= sm8650-modules/qcom/opensource
        BOARD_COMMON_DIR ?= device/qcom/common
        
        LOCAL_PATH := $(call my-dir)

@@ -52,8 +52,8 @@ module_entry(
         ],
     },
     deps = [
-            "//vendor/qcom/opensource/mm-drivers:mm_drivers_headers",
-            "//vendor/qcom/opensource/synx-kernel:synx_headers",
+            "//sm8650-modules/qcom/opensource/mm-drivers:mm_drivers_headers",
+            "//sm8650-modules/qcom/opensource/synx-kernel:synx_headers",
         ],
 )
 

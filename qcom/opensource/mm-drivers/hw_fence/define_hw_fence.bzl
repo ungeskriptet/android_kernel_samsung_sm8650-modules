@@ -24,8 +24,8 @@ def _define_module(target, variant):
         },
         deps = [
             "//msm-kernel:all_headers",
-            "//vendor/qcom/opensource/synx-kernel:synx_headers",
-            "//vendor/qcom/opensource/mm-drivers:mm_drivers_headers",
+            "//sm8650-modules/qcom/opensource/synx-kernel:synx_headers",
+            "//sm8650-modules/qcom/opensource/mm-drivers:mm_drivers_headers",
         ],
         kernel_build = "//msm-kernel:{}".format(tv),
     )

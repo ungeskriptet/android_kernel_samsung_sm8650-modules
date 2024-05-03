@@ -17,7 +17,7 @@ endif
 ifneq ($(findstring vendor,$(LOCAL_PATH)),)
 
 ifneq ($(findstring opensource,$(LOCAL_PATH)),)
-	DISPLAY_BLD_DIR := $(TOP)/vendor/qcom/opensource/display-drivers
+	DISPLAY_BLD_DIR := $(TOP)/sm8650-modules/qcom/opensource/display-drivers
 endif # opensource
 
 DLKM_DIR := $(TOP)/device/qcom/common/dlkm

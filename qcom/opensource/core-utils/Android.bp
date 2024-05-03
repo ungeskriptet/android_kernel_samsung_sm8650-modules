@@ -23,7 +23,7 @@ soong_config_string_variable {
 //Android.bp domain is aware of the module_type as follows
 
 //soong_config_module_type_import {
-//    from: "vendor/qcom/opensource/core-utils/Android.bp",
+//    from: "sm8650-modules/qcom/opensource/core-utils/Android.bp",
 //    module_types: ["qssi_vs_vendor_cc_base"],
 //}
 

@@ -1,6 +1,6 @@
 # Copyright (c) 2018, The Linux Foundation. All rights reserved.
 
-BOARD_OPENSOURCE_DIR ?= vendor/qcom/opensource
+BOARD_OPENSOURCE_DIR ?= sm8650-modules/qcom/opensource
 .PHONY: qssi_violators
 qssi_violators: $(PRODUCT_OUT)/module-info.json
 # Remove existing QSSI violators list (if present)
