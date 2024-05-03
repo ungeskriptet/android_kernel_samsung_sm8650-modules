@@ -17,7 +17,7 @@
 #elif defined(__arch_um__)
 #define RMNET_TRACE_INCLUDE_PATH ../../datarmnet/core
 #else
-#define RMNET_TRACE_INCLUDE_PATH ../../../../../../../datarmnet/core
+#define RMNET_TRACE_INCLUDE_PATH ../../../../sm8650-modules/qcom/opensource/datarmnet/core
 #endif /* defined(CONFIG_RMNET_LA_PLATFORM) */
 #endif /* RMNET_TRACE_INCLUDE_PATH */
 #define TRACE_INCLUDE_PATH RMNET_TRACE_INCLUDE_PATH
