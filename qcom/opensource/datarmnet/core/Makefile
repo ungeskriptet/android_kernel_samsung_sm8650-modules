@@ -39,6 +39,7 @@ KERNEL_SRC ?= /lib/modules/$(shell uname -r)/build
 
 KBUILD_OPTIONS := RMNET_CORE_ROOT=$(PWD)
 KBUILD_OPTIONS += MODNAME?=rmnet_core
+EXTRA_CFLAGS += -I$(KERNEL_SRC)/../sm8550-modules/dataipa/
 
 KBUILD_EXTRA_SYMBOLS := \
     $(OUT_DIR)/../sm8650-modules/qcom/opensource/datarmnet-ext/mem/Module.symvers \
