@@ -1,5 +1,5 @@
 //###############################################################################
-// @file vendor/qcom/opensource/time_services/Android.bp
+// @file sm8650-modules/qcom/opensource/time_services/Android.bp
 // @brief Makefile for generating time services header library.
 //###############################################################################
 

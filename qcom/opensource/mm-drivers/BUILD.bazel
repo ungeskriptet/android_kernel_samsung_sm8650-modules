@@ -16,7 +16,7 @@ ddk_headers(
     name = "mm_drivers_headers",
     hdrs = [
         ":mm_drivers_configs",
-        "//vendor/qcom/opensource/mm-drivers/hw_fence:hw_fence_headers",
-        "//vendor/qcom/opensource/mm-drivers/sync_fence:sync_fence_uapi_headers",
+        "//sm8650-modules/qcom/opensource/mm-drivers/hw_fence:hw_fence_headers",
+        "//sm8650-modules/qcom/opensource/mm-drivers/sync_fence:sync_fence_uapi_headers",
     ],
 )

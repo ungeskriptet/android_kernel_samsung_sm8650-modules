@@ -95,10 +95,10 @@ def external_deps(target, variant):
     # Add msm_hw_fence in the dependency and defconfig lists for targets that use it
     if target in [ "pineapple" ]:
         deplist = deplist + [
-            "//vendor/qcom/opensource/mm-drivers/hw_fence:{}_msm_hw_fence".format(tv)
+            "//sm8650-modules/qcom/opensource/mm-drivers/hw_fence:{}_msm_hw_fence".format(tv)
             ]
         defconfigs = defconfigs + [
-            "//vendor/qcom/opensource/mm-drivers/hw_fence:defconfig"
+            "//sm8650-modules/qcom/opensource/mm-drivers/hw_fence:defconfig"
             ]
 
     native.genrule(
