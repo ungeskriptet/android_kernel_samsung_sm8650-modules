@@ -1,0 +1,121 @@
+soong_namespace {
+}
+
+soong_config_module_type_import {
+    from: "device/qcom/qssi/Android.bp",
+    module_types: [
+         "bredr_vs_btadva_java_defaults",
+         "aosp_vs_qva_java_defaults"
+    ],
+}
+
+bredr_vs_btadva_java_defaults {
+    name: "btadva_java_defaults",
+
+    soong_config_variables: {
+        bredr_or_btadva: {
+           btadva: {
+              srcs: [ ":bluetooth-apps-adva-srcs" ],
+           }
+       }
+   }
+}
+
+aosp_vs_qva_java_defaults {
+    name: "qva_java_defaults",
+    soong_config_variables: {
+        aosp_or_qva: {
+           qva: {
+             static_libs: [
+                "bluetooth-protos-lite",
+             ],
+             srcs: [":statslog-bluetooth-java-gen"],
+           }
+        }
+    }
+}
+
+java_library {
+   name: "bluetooth_qti.change-ids",
+   srcs: [
+       "src/com/android/bluetooth/ChangeIds.java"
+   ],
+   libs: [
+       "app-compat-annotations",
+   ],
+   min_sdk_version: "Tiramisu",
+   sdk_version: "module_current",
+}
+
+// MAP API module
+
+java_library {
+    name: "bluetooth.mapsapi",
+
+    srcs: ["lib/mapapi/**/*.java"],
+}
+
+platform_compat_config {
+    name: "bluetoothapk_qti-platform-compat-config",
+    src: ":bluetooth_qti.change-ids",
+}
+
+// Bluetooth APK
+
+android_app {
+    name: "Bluetooth",
+
+    defaults: ["btadva_java_defaults", "qva_java_defaults"],
+    srcs: [
+        "src/**/*.java",
+        ":vendor_qcom_opensource_commonsys_bluetooth_ext_packages_apps_bluetooth_ext",
+    ],
+    exclude_srcs: [
+        "src/com/android/bluetooth/directionfinder/*.java",
+    ],
+    platform_apis: true,
+    certificate: "platform",
+    aaptflags: [ "--custom-package", "com.android.bluetooth" ],
+
+    jni_libs: ["libbluetooth_qti_jni"],
+    libs: [
+        "telephony-common",
+        "services.net",
+        "app-compat-annotations",
+    ],
+    static_libs: [
+        "android.hardware.radio.sap-V1-java",
+        "com.android.vcard",
+        "com.android.obex",
+        "bluetooth_qti.change-ids",
+        "bluetooth.mapsapi",
+        "sap-api-java-static",
+        "services.net",
+        "libprotobuf-java-lite",
+        "androidx.core_core",
+        "androidx.lifecycle_lifecycle-livedata",
+        "androidx.room_room-runtime",
+        "modules-utils-bytesmatcher",
+        "modules-utils-handlerexecutor",
+        "modules-utils-synchronous-result-receiver",
+    ],
+
+    plugins: [
+        "androidx.room_room-compiler-plugin",
+    ],
+
+    // Add in path to Bluetooth directory because local path does not exist
+    javacflags: ["-Aroom.schemaLocation=vendor/qcom/opensource/commonsys/packages/apps/Bluetooth/tests/unit/src/com/android/bluetooth/btservice/storage/schemas"],
+
+    optimize: {
+        enabled: false,
+    },
+    required: [
+        "libbluetooth",
+        "bluetoothapk_qti-platform-compat-config",
+    ],
+
+    proto: {
+        type: "micro",
+    },
+}
