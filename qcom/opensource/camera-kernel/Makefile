@@ -1,8 +1,11 @@
 # Makefile for use with Android's kernel/build system
 
 KBUILD_OPTIONS += CAMERA_KERNEL_ROOT=$(shell pwd)
-KBUILD_OPTIONS += KERNEL_ROOT=$(ROOT_DIR)/$(KERNEL_DIR)
+KBUILD_OPTIONS += KERNEL_ROOT=$(ANDROID_BUILD_TOP)/kernel/samsung/sm8650
 KBUILD_OPTIONS += MODNAME=camera
+KBUILD_EXTRA_SYMBOLS := \
+    $(OUT_DIR)/../sm8650-modules/qcom/opensource/mmrm-driver/Module.symvers \
+    $(OUT_DIR)/../sm8650-modules/qcom/opensource/securemsm-kernel/Module.symvers
 
 all: modules
 
