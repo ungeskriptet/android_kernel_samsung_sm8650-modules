@@ -1,3 +1,5 @@
+ccflags-y += -I$(srctree)/../sm8650-modules/qcom/opensource/dataipa/drivers/platform/msm/include
+ccflags-y += -I$(srctree)/../sm8650-modules/qcom/opensource/dataipa/drivers/platform/msm/include/uapi
 ifeq ($(TARGET_DATARMNET_ENABLE), true)
 ifneq ($(TARGET_BOARD_PLATFORM),qssi)
 RMNET_CORE_DLKM_PLATFORMS_LIST := pineapple
