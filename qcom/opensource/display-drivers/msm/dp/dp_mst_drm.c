@@ -2087,7 +2087,7 @@ static void dp_mst_display_hpd_irq(void *dp_display)
 	DP_MST_DEBUG("mst irq: esi1[0x%x] esi2[0x%x] esi3[%x]\n",
 			esi[1], esi[2], esi[3]);
 
-	rc = drm_dp_mst_hpd_irq(&mst->mst_mgr, esi, &handled);
+	rc = drm_dp_mst_hpd_irq_handle_event(&mst->mst_mgr, esi, &handled);
 
 	/* ack the request */
 	if (handled) {
