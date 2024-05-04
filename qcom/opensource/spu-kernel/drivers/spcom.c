@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2019, 2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023,2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /*
@@ -68,6 +68,19 @@
 #include <linux/ipc_logging.h>
 #include <linux/pm.h>
 #include <linux/string.h>
+
+//========================================================================================
+// Fix for periodic wake up in factory binary (P230210-02325)
+// - Case number    : Case 06484556 (SM8550), Case 06919420 (SM8650)
+// - Problem        : Polling register on UEFI stage makes consumption currents
+// - Cause          : Polling register on UEFI stage(for SLT QUEST) makes consumption currents.
+// - Solution       : Stop polling register on kernel stage.
+//========================================================================================
+#include <linux/io.h>
+
+#define SPCOM_POLLING_REGISTER_ADDRESS 0x1885028
+#define SPCOM_STOP_POLLING_VALUE 0xffff
+//========================================================================================
 
 #define SPCOM_LOG_PAGE_CNT 10
 
@@ -2722,7 +2735,7 @@ static int spcom_ioctl_handle_lock_dmabuf_command(struct spcom_ioctl_dmabuf_lock
 	int fd = 0;
 	int i = 0;
 
-	spcom_pr_dbg("Lock dmabuf cmd arg: ch_name[%s], fd[%d], padding[%u], PID[%d]\n",
+	spcom_pr_dbg("Lock dmabuf cmd arg: ch_name[%s], fd[%d], padding[%u], PID[%ld]\n",
 		arg->ch_name, arg->fd, arg->padding, current_pid());
 
 	ch_name = arg->ch_name;
@@ -2825,7 +2838,7 @@ static int spcom_ioctl_handle_unlock_dmabuf_command(struct spcom_ioctl_dmabuf_lo
 	int ret = 0;
 	bool unlock_all = false;
 
-	spcom_pr_dbg("Unlock dmabuf cmd arg: ch_name[%s], fd[%d], padding[%u], PID[%d]\n",
+	spcom_pr_dbg("Unlock dmabuf cmd arg: ch_name[%s], fd[%d], padding[%u], PID[%ld]\n",
 		arg->ch_name, arg->fd, arg->padding, current_pid());
 
 	ch_name = arg->ch_name;
@@ -3218,12 +3231,12 @@ bool is_arg_size_expected(unsigned int cmd, uint32_t arg_size)
 		expected_size = sizeof(struct spcom_ioctl_dmabuf_lock);
 		break;
 	default:
-		spcom_pr_err("No userspace data for ioctl cmd[%d]\n", cmd);
+		spcom_pr_err("No userspace data for ioctl cmd[%ld]\n", cmd);
 		return false;
 	}
 
 	if (arg_size != expected_size) {
-		spcom_pr_err("Invalid cmd size: cmd[%d], arg size[%u], expected[%u]\n",
+		spcom_pr_err("Invalid cmd size: cmd[%ld], arg size[%u], expected[%u]\n",
 				cmd, arg_size, expected_size);
 		return false;
 	}
@@ -3696,6 +3709,17 @@ static int spcom_rpdev_probe(struct rpmsg_device *rpdev)
 	const char *name;
 	struct spcom_channel *ch;
 
+	//========================================================================================
+	// Fix for periodic wake up in factory binary (P230210-02325)
+	//========================================================================================
+	/* Stop polling  */
+	void __iomem *stop_polling = NULL;
+	stop_polling = ioremap(SPCOM_POLLING_REGISTER_ADDRESS , sizeof(u32));
+	spcom_pr_dbg("before stop polling register : %x", readl_relaxed(stop_polling));
+	writel_relaxed(SPCOM_STOP_POLLING_VALUE, stop_polling);
+	spcom_pr_dbg("after stop polling register : %x", readl_relaxed(stop_polling));
+	//========================================================================================
+
 	if (!rpdev) {
 		spcom_pr_err("rpdev is NULL\n");
 		return -EINVAL;
@@ -3924,6 +3948,7 @@ static int spcom_probe(struct platform_device *pdev)
 		pr_err("Unable to create IPC log context\n");
 
 	spcom_pr_info("Driver Initialization completed ok\n");
+
 	return 0;
 
 fail_reg_chardev:

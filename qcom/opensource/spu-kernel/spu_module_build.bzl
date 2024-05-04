@@ -87,7 +87,7 @@ def define_target_variant_modules(target, variant, registry, modules, config_opt
     copy_to_dist_dir(
         name = "{}_spu-drivers_dist".format(kernel_build),
         data = [":{}_spu-drivers".format(kernel_build)],
-        dist_dir = "../sm8650-modules/qcom/opensource/spu-drivers/out", ## TODO
+        dist_dir = "../vendor/qcom/opensource/spu-drivers/out", ## TODO
         flat = True,
         wipe_dist_dir = False,
         allow_duplicate_filenames = False,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022,2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /*
@@ -74,6 +74,10 @@ static bool is_ssr_disabled;
 
 #define CMAC_SIZE_IN_BYTES (128/8) /* 128 bit = 16 bytes */
 #define CMAC_SIZE_IN_DWORDS (CMAC_SIZE_IN_BYTES/sizeof(u32)) /* 4 dwords */
+
+// MCP code size register holds size divided by a factor
+// To get the actual size, need to multiply by the same factor
+#define MCP_SIZE_MUL_FACTOR (4)
 
 static u32 pil_addr;
 static u32 pil_size;
@@ -535,13 +539,13 @@ static long spss_utils_ioctl(struct file *file,
 	if (size && (cmd & IOC_IN)) {
 		if (size > sizeof(data)) {
 			pr_err("cmd [0x%x] size [0x%x] too large\n",
-				cmd, (unsigned int)size);
+				cmd, size);
 			return -EINVAL;
 		}
 
 		if (copy_from_user(data, (void __user *)arg, size)) {
 			pr_err("copy_from_user() failed, cmd [0x%x] size [0x%x]\n",
-				cmd, (unsigned int)size);
+				cmd, size);
 			return -EFAULT;
 		}
 	}
@@ -569,7 +573,7 @@ static long spss_utils_ioctl(struct file *file,
 	case SPSS_IOC_WAIT_FOR_EVENT:
 		/* check input params */
 		if (size != sizeof(struct spss_ioc_wait_for_event)) {
-			pr_err("cmd [0x%x] invalid size [0x%x]\n", cmd, (unsigned int)size);
+			pr_err("cmd [0x%x] invalid size [0x%x]\n", cmd, size);
 			return -EINVAL;
 		}
 		ret = spss_wait_for_event(req);
@@ -587,7 +591,7 @@ static long spss_utils_ioctl(struct file *file,
 	case SPSS_IOC_SIGNAL_EVENT:
 		/* check input params */
 		if (size != sizeof(struct spss_ioc_signal_event)) {
-			pr_err("cmd [0x%x] invalid size [0x%x]\n", cmd, (unsigned int)size);
+			pr_err("cmd [0x%x] invalid size [0x%x]\n", cmd, size);
 			return -EINVAL;
 		}
 		ret = spss_signal_event(req);
@@ -604,7 +608,7 @@ static long spss_utils_ioctl(struct file *file,
 	case SPSS_IOC_IS_EVENT_SIGNALED:
 		/* check input params */
 		if (size != sizeof(struct spss_ioc_is_signaled)) {
-			pr_err("cmd [0x%x] invalid size [0x%x]\n", cmd, (unsigned int)size);
+			pr_err("cmd [0x%x] invalid size [0x%x]\n", cmd, size);
 			return -EINVAL;
 		}
 		ret = spss_is_event_signaled(req);
@@ -622,7 +626,7 @@ static long spss_utils_ioctl(struct file *file,
 	case SPSS_IOC_SET_SSR_STATE:
 		/* check input params */
 		if (size != sizeof(uint32_t)) {
-			pr_err("cmd [0x%x] invalid size [0x%x]\n", cmd, (unsigned int)size);
+			pr_err("cmd [0x%x] invalid size [0x%x]\n", cmd, size);
 			return -EINVAL;
 		}
 
@@ -725,6 +729,34 @@ static void spss_utils_destroy_chardev(void)
 /*==========================================================================*/
 /*		Device Tree */
 /*==========================================================================*/
+
+/* get the ACTUAL spss PIL firmware size from spu reg */
+static int get_pil_size(phys_addr_t base_addr)
+{
+	u32 spss_code_size_addr = 0;
+	void __iomem *spss_code_size_reg = NULL;
+	u32 pil_size = 0;
+
+	spss_code_size_addr = base_addr + SPSS_RMB_CODE_SIZE_REG_OFFSET;
+	spss_code_size_reg = ioremap(spss_code_size_addr, sizeof(u32));
+	if (!spss_code_size_reg) {
+		pr_err("can't map spss_code_size_addr\n");
+		return -EINVAL;
+	}
+	pil_size = readl_relaxed(spss_code_size_reg);
+	iounmap(spss_code_size_reg);
+
+	// Multiply the value read from code size register by factor
+	// to get the actual size (see MCP_SIZE_MUL_FACTOR documentation)
+	pil_size *= MCP_SIZE_MUL_FACTOR;
+
+	if (pil_size % SZ_4K) {
+		pr_err("pil_size [0x%08x] is not 4K aligned.\n", pil_size);
+		return -EFAULT;
+	}
+
+	return pil_size;
+}
 
 /**
  * spss_parse_dt() - Parse Device Tree info.
@@ -919,7 +951,7 @@ static int spss_parse_dt(struct device_node *node)
 
 	spss_regs_base_addr =
 		(spss_debug_reg_addr & SPSS_BASE_ADDR_MASK);
-	ret = get_spss_image_size(spss_regs_base_addr);
+	ret = get_pil_size(spss_regs_base_addr);
 	if (ret < 0) {
 		pr_err("failed to get pil_size.\n");
 		return -EFAULT;
@@ -931,7 +963,7 @@ static int spss_parse_dt(struct device_node *node)
 
 	/* cmac buffer after spss firmware end */
 	cmac_mem_addr = pil_addr + pil_size;
-	pr_info("iar_buf_addr [0x%08x].\n", (unsigned int)cmac_mem_addr);
+	pr_info("iar_buf_addr [0x%08x].\n", cmac_mem_addr);
 
 	memset(saved_fw_cmac, 0xA5, sizeof(saved_fw_cmac));
 	memset(saved_apps_cmac, 0xA5, sizeof(saved_apps_cmac));

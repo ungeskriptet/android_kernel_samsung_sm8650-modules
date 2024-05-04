@@ -1,11 +1,11 @@
 # Android makefile for spu kernel modules (spcom.ko and spss_utils.ko)
 ifeq ($(call is-vendor-board-platform,QCOM),true)
-ifeq ($(call is-board-platform-in-list,kalama pineapple niobe),true)
+ifeq ($(call is-board-platform-in-list,kalama pineapple),true)
 
 # This makefile is only for DLKM
 ifneq ($(findstring vendor,$(LOCAL_PATH)),)
 	LOCAL_PATH := $(call my-dir)
-	SPU_BLD_DIR := $(TOP)/sm8650-modules/qcom/opensource/spu-kernel
+	SPU_BLD_DIR := $(TOP)/vendor/qcom/opensource/spu-kernel
 	LOCAL_MODULE_DDK_BUILD := true
 	LOCAL_MODULE_KO_DIRS := drivers/spcom.ko drivers/spss_utils.ko
 	DLKM_DIR := $(TOP)/device/qcom/common/dlkm
