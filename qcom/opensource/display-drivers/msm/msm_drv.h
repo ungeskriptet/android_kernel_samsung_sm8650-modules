@@ -20,6 +20,10 @@
 #ifndef __MSM_DRV_H__
 #define __MSM_DRV_H__
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG) && IS_ENABLED(CONFIG_UML)
+#include "samsung/kunit_test/ss_kunit_test_garbage_macro.h"
+#endif
+
 #include <linux/kernel.h>
 #include <linux/clk.h>
 #include <linux/cpufreq.h>
@@ -237,7 +241,6 @@ enum msm_mdp_conn_property {
 	CONNECTOR_PROP_DIMMING_MIN_BL,
 	CONNECTOR_PROP_EARLY_FENCE_LINE,
 	CONNECTOR_PROP_DYN_TRANSFER_TIME,
-	CONNECTOR_PROP_BRIGHTNESS,
 
 	/* enum/bitmask properties */
 	CONNECTOR_PROP_TOPOLOGY_NAME,
@@ -257,6 +260,10 @@ enum msm_mdp_conn_property {
 	CONNECTOR_PROP_WB_ROT_TYPE,
 	CONNECTOR_PROP_WB_ROT_BYTES_PER_CLK,
 	CONNECTOR_PROP_BPP_MODE,
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	/* SAMSUNG_FINGERPRINT */
+	CONNECTOR_PROP_FINGERPRINT_MASK,
+#endif
 
 	/* total # of properties */
 	CONNECTOR_PROP_COUNT
@@ -849,6 +856,9 @@ struct msm_display_wd_jitter_config {
  */
 struct msm_mode_info {
 	uint32_t frame_rate;
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	uint32_t frame_rate_org;
+#endif
 	uint32_t vtotal;
 	uint32_t prefill_lines;
 	uint32_t jitter_numer;
@@ -1372,6 +1382,10 @@ int msm_framebuffer_get_cache_hint(struct drm_framebuffer *fb,
 
 struct drm_fb_helper *msm_fbdev_init(struct drm_device *dev);
 void msm_fbdev_free(struct drm_device *dev);
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+int __msm_drm_notifier_call_chain(unsigned long event, void *data);
+#endif
 
 struct hdmi;
 #if IS_ENABLED(CONFIG_DRM_MSM_HDMI)

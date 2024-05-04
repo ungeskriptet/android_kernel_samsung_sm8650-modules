@@ -9,6 +9,9 @@
 
 #include "dp_parser.h"
 #include "dp_debug.h"
+#if defined(CONFIG_SECDP)
+#include "secdp.h"
+#endif
 
 static void dp_parser_unmap_io_resources(struct dp_parser *parser)
 {
@@ -26,6 +29,8 @@ static int dp_parser_reg(struct dp_parser *parser)
 	struct platform_device *pdev = parser->pdev;
 	struct dp_io *io = &parser->io;
 	struct device *dev = &pdev->dev;
+
+	DP_ENTER("\n");
 
 	reg_count = of_property_count_strings(dev->of_node, "reg-names");
 	if (reg_count <= 0) {
@@ -100,6 +105,8 @@ static int dp_parser_aux(struct dp_parser *parser)
 	const char *data;
 	int const minimum_config_count = 1;
 
+	DP_ENTER("\n");
+
 	for (i = 0; i < PHY_AUX_CFG_MAX; i++) {
 		const char *property = dp_get_phy_aux_config_property(i);
 
@@ -138,12 +145,59 @@ error:
 	return -EINVAL;
 }
 
+#if defined(CONFIG_SECDP_DBG)
+int secdp_aux_cfg_show(struct dp_parser *parser, char *buf)
+{
+	struct dp_aux_cfg *cfg = parser->aux_cfg;
+	int i, rc = 0;
+
+	for (i = 0; i < PHY_AUX_CFG_MAX; i++) {
+		rc += scnprintf(buf + rc, PAGE_SIZE - rc,
+				"%s: offset=0x%x, value=0x%02x\n",
+				dp_phy_aux_config_type_to_string(i),
+				cfg[i].offset,
+				cfg[i].lut[cfg[i].current_index]);
+	}
+
+	return rc;
+}
+
+int secdp_aux_cfg_store(struct dp_parser *parser, char *buf)
+{
+	struct dp_aux_cfg *cfg = parser->aux_cfg;
+	char *tok;
+	u32  value;
+	int  i, rc = 0;
+
+	for (i = 0; i < PHY_AUX_CFG_MAX; i++) {
+		tok = strsep(&buf, ",");
+		if (!tok)
+			continue;
+
+		rc = kstrtouint(tok, 16, &value);
+		if (rc) {
+			DP_ERR("error: %s rc:%d\n", tok, rc);
+			break;
+		}
+
+		cfg[i].lut[cfg[i].current_index] = value;
+
+		DP_DEBUG("offset=0x%x, value=0x%02x\n", cfg[i].offset,
+			cfg[i].lut[cfg[i].current_index]);
+	}
+
+	return rc;
+}
+#endif
+
 static int dp_parser_misc(struct dp_parser *parser)
 {
 	int rc = 0, len = 0, i = 0;
 	const char *data = NULL;
 
 	struct device_node *of_node = parser->pdev->dev.of_node;
+
+	DP_ENTER("\n");
 
 	data = of_get_property(of_node, "qcom,logical2physical-lane-map", &len);
 	if (data && (len == DP_MAX_PHY_LN)) {
@@ -175,6 +229,8 @@ static int dp_parser_msm_hdcp_dev(struct dp_parser *parser)
 	struct device_node *node;
 	struct platform_device *pdev;
 
+	DP_ENTER("\n");
+
 	node = of_find_compatible_node(NULL, NULL, "qcom,msm-hdcp");
 	if (!node) {
 		// This is a non-fatal error, module initialization can proceed
@@ -198,6 +254,13 @@ static int dp_parser_pinctrl(struct dp_parser *parser)
 {
 	int rc = 0;
 	struct dp_pinctrl *pinctrl = &parser->pinctrl;
+
+#if IS_ENABLED(CONFIG_SBU_SWITCH_CONTROL)
+	DP_INFO("max77775: no need to parse dp_aux gpios\n");
+	return 0;
+#endif
+
+	DP_ENTER("\n");
 
 	pinctrl->pin = devm_pinctrl_get(&parser->pdev->dev);
 
@@ -237,6 +300,8 @@ static int dp_parser_gpio(struct dp_parser *parser)
 		"qcom,usbplug-cc-gpio",
 	};
 
+	DP_ENTER("\n");
+
 	if (of_find_property(of_node, "qcom,dp-gpio-aux-switch", NULL))
 		parser->gpio_aux_switch = true;
 	mp->gpio_config = devm_kzalloc(dev,
@@ -265,6 +330,14 @@ static int dp_parser_gpio(struct dp_parser *parser)
 		mp->gpio_config[i].value = 0;
 	}
 
+#if defined(CONFIG_SECDP)
+	for (i = 0; i < ARRAY_SIZE(dp_gpios); i++) {
+		DP_INFO("name:%s gpio:%u value:%u\n",
+			mp->gpio_config[i].gpio_name,
+			mp->gpio_config[i].gpio, mp->gpio_config[i].value);
+	}
+#endif
+
 	return 0;
 }
 
@@ -292,6 +365,9 @@ static int dp_parser_get_vreg(struct dp_parser *parser,
 
 	mp->num_vreg = 0;
 	pm_supply_name = dp_parser_supply_node_name(module);
+#if defined(CONFIG_SECDP)
+	DP_DEBUG("pm_supply_name: %s\n", pm_supply_name);
+#endif
 	supply_root_node = of_get_child_by_name(of_node, pm_supply_name);
 	if (!supply_root_node) {
 		DP_DEBUG("no supply entry present: %s\n", pm_supply_name);
@@ -404,6 +480,22 @@ static void dp_parser_put_vreg_data(struct device *dev,
 	mp->num_vreg = 0;
 }
 
+#if defined(CONFIG_SECDP)
+static struct regulator *secdp_get_aux_pullup_vreg(struct device *dev)
+{
+	struct regulator *vreg = NULL;
+
+	vreg = devm_regulator_get(dev, "aux-pullup");
+	if (IS_ERR(vreg)) {
+		DP_ERR("unable to get aux-pullup vdd supply\n");
+		return NULL;
+	}
+
+	DP_INFO("get aux-pullup vdd success\n");
+	return vreg;
+}
+#endif
+
 static int dp_parser_regulator(struct dp_parser *parser)
 {
 	int i, rc = 0;
@@ -422,6 +514,10 @@ static int dp_parser_regulator(struct dp_parser *parser)
 			break;
 		}
 	}
+
+#if defined(CONFIG_SECDP)
+	parser->aux_pullup_vreg = secdp_get_aux_pullup_vreg(&pdev->dev);
+#endif
 
 	return rc;
 }
@@ -690,6 +786,16 @@ static int dp_parser_mst(struct dp_parser *parser)
 
 	parser->has_mst = of_property_read_bool(dev->of_node,
 			"qcom,mst-enable");
+#if defined(CONFIG_SECDP)
+//	DP_DEBUG("qcom,mst-enable: %d\n", parser->has_mst);
+	parser->mst_support = of_property_read_bool(dev->of_node,
+			"secdp,mst-support");
+//	DP_DEBUG("secdp,mst-support: %d\n", parser->mst_support);
+	if (!parser->mst_support) {
+		parser->has_mst = false;
+		DP_INFO("[secdp] mst disable!\n");
+	}
+#endif
 	parser->has_mst_sideband = parser->has_mst;
 
 	DP_DEBUG("mst parsing successful. mst:%d\n", parser->has_mst);
@@ -709,6 +815,10 @@ static void dp_parser_dsc(struct dp_parser *parser)
 
 	parser->dsc_feature_enable = of_property_read_bool(dev->of_node,
 			"qcom,dsc-feature-enable");
+#if defined(SECDP_MAX_HBR2)
+	parser->dsc_feature_enable = false;
+	DP_INFO("[secdp] dsc disable!\n");
+#endif
 
 	parser->dsc_continuous_pps = of_property_read_bool(dev->of_node,
 			"qcom,dsc-continuous-pps");
@@ -745,6 +855,10 @@ static void dp_parser_fec(struct dp_parser *parser)
 
 	parser->fec_feature_enable = of_property_read_bool(dev->of_node,
 			"qcom,fec-feature-enable");
+#if defined(SECDP_MAX_HBR2)
+	parser->fec_feature_enable = false;
+	DP_INFO("[secdp] fec disable!\n");
+#endif
 
 	DP_DEBUG("fec parsing successful. fec:%d\n",
 			parser->fec_feature_enable);
@@ -761,7 +875,8 @@ static void dp_parser_widebus(struct dp_parser *parser)
 			parser->has_widebus);
 }
 
-static int parse_lt_param(struct device *dev, u8 **ptr, char *property) {
+static int parse_lt_param(struct device *dev, u8 **ptr, char *property)
+{
 	int ret = 0, i = 0, j = 0, index = 0;
 	u32 out_val = 0;
 	u32 expected_elems = MAX_SWING_LEVELS * MAX_PRE_EMP_LEVELS;
@@ -808,24 +923,36 @@ static void dp_parser_clear_link_training_params(struct dp_parser *dp_parser)
 	dp_parser->valid_lt_params = false;
 }
 
+#if !defined(CONFIG_SECDP)
+#define HBR2_3_VOLTAGE_SWING "qcom,hbr2-3-voltage-swing"
+#define HBR2_3_PRE_EMPHASIS  "qcom,hbr2-3-pre-emphasis"
+#define HBR_RBR_VOLTAGE_SWING "qcom,hbr-rbr-voltage-swing"
+#define HBR_RBR_PRE_EMPHASIS  "qcom,hbr-rbr-pre-emphasis"
+#else
+#define HBR2_3_VOLTAGE_SWING "secdp,hbr2-3-voltage-swing"
+#define HBR2_3_PRE_EMPHASIS  "secdp,hbr2-3-pre-emphasis"
+#define HBR_RBR_VOLTAGE_SWING "secdp,hbr-rbr-voltage-swing"
+#define HBR_RBR_PRE_EMPHASIS  "secdp,hbr-rbr-pre-emphasis"
+#endif
+
 static void dp_parser_link_training_params(struct dp_parser *parser)
 {
 	struct device *dev = &parser->pdev->dev;
 	int ret = 0;
 
-	ret = parse_lt_param(dev, &parser->swing_hbr2_3, "qcom,hbr2-3-voltage-swing");
+	ret = parse_lt_param(dev, &parser->swing_hbr2_3, HBR2_3_VOLTAGE_SWING);
 	if (ret)
 		goto early_exit;
 
-	ret = parse_lt_param(dev, &parser->pre_emp_hbr2_3, "qcom,hbr2-3-pre-emphasis");
+	ret = parse_lt_param(dev, &parser->pre_emp_hbr2_3, HBR2_3_PRE_EMPHASIS);
 	if (ret)
 		goto early_exit;
 
-	ret = parse_lt_param(dev, &parser->swing_hbr_rbr, "qcom,hbr-rbr-voltage-swing");
+	ret = parse_lt_param(dev, &parser->swing_hbr_rbr, HBR_RBR_VOLTAGE_SWING);
 	if (ret)
 		goto early_exit;
 
-	ret = parse_lt_param(dev, &parser->pre_emp_hbr_rbr, "qcom,hbr-rbr-pre-emphasis");
+	ret = parse_lt_param(dev, &parser->pre_emp_hbr_rbr, HBR_RBR_PRE_EMPHASIS);
 	if (ret)
 		goto early_exit;
 
@@ -835,7 +962,7 @@ static void dp_parser_link_training_params(struct dp_parser *parser)
 	goto end;
 
 early_exit:
-	if(ret == -EINVAL)
+	if (ret == -EINVAL)
 		DP_WARN("link training parameters not found - using default values\n");
 	else
 		DP_ERR("link training parameters parsing failure ret: %d\n", ret);
@@ -844,6 +971,812 @@ early_exit:
 end:
 	return;
 }
+
+#if defined(CONFIG_SECDP)
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+static void secdp_parse_ps5169_param(struct dp_parser *parser);
+#endif
+
+static void secdp_parse_misc(struct dp_parser *parser)
+{
+	struct device *dev = &parser->pdev->dev;
+	struct device_node *of_node = dev->of_node;
+	const char *data;
+	int len = 0;
+
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+	secdp_parse_ps5169_param(parser);
+#endif
+
+	parser->cc_dir_inv = of_property_read_bool(dev->of_node,
+			"secdp,cc-dir-inv");
+	DP_DEBUG("secdp,cc-dir-inv: %d\n", parser->cc_dir_inv);
+
+	parser->aux_sel_inv = of_property_read_bool(dev->of_node,
+			"secdp,aux-sel-inv");
+	DP_DEBUG("secdp,aux-sel-inv: %d\n", parser->aux_sel_inv);
+
+	data = of_get_property(of_node, "secdp,redrv", &len);
+	if (data) {
+		if (!strncmp(data, "ptn36502", len))
+			parser->use_redrv = SECDP_REDRV_PTN36502;
+		else if (!strncmp(data, "ps5169", len))
+			parser->use_redrv = SECDP_REDRV_PS5169;
+		else
+			parser->use_redrv = SECDP_REDRV_NONE;
+	}
+	DP_DEBUG("secdp,redrv: %s, %s\n", data,
+		secdp_redrv_to_string(parser->use_redrv));
+
+	data = of_get_property(of_node, "secdp,dex-dft-res", &len);
+	if (data) {
+		if (!strncmp(data, "3440x1440", len))
+			parser->dex_dft_res = DEX_RES_3440X1440;
+	}
+	DP_DEBUG("secdp,dex-dft-res: %s, %s\n", data,
+		secdp_dex_res_to_string(parser->dex_dft_res));
+
+	parser->prefer_support = of_property_read_bool(dev->of_node,
+			"secdp,prefer-res");
+	DP_DEBUG("secdp,prefer-res: %d\n", parser->prefer_support);
+
+	parser->mrr_fps_nolimit = of_property_read_bool(dev->of_node,
+			"secdp,mrr-fps-nolimit");
+	DP_DEBUG("secdp,mrr_fps_nolimit: %d\n", parser->mrr_fps_nolimit);
+}
+#endif
+
+#if defined(CONFIG_SECDP_DBG)
+/*********************************************
+ ***         default DP PHY params         ***
+ ***        see  pineapple-sde.dtsi        ***
+ *********************************************/
+static u8 const hbr_rbr_voltage_swing[MAX_VOLTAGE_LEVELS * MAX_PRE_EMP_LEVELS] = {
+	0x07, 0x0f, 0x16, 0x1f, /* sw0, 0.4v */
+	0x11, 0x1e, 0x1f, 0xff, /* sw1, 0.6v */
+	0x16, 0x1f, 0xff, 0xff, /* sw1, 0.8v */
+	0x1f, 0xff, 0xff, 0xff,  /* sw1, 1.2v */
+};
+
+static u8 const hbr_rbr_pre_emphasis[MAX_VOLTAGE_LEVELS * MAX_PRE_EMP_LEVELS] = {
+	0x00, 0x0d, 0x14, 0x1a, /* pe0,   0 db */
+	0x00, 0x0e, 0x15, 0xff, /* pe1, 3.5 db */
+	0x00, 0x0e, 0xff, 0xff, /* pe2, 6.0 db */
+	0x02, 0xff, 0xff, 0xff, /* pe3, 9.5 db */
+};
+
+static u8 const hbr2_3_voltage_swing[MAX_VOLTAGE_LEVELS * MAX_PRE_EMP_LEVELS] = {
+	0x02, 0x12, 0x16, 0x1a, /* sw0, 0.4v */
+	0x09, 0x19, 0x1f, 0xff, /* sw1, 0.6v */
+	0x10, 0x1f, 0xff, 0xff, /* sw1, 0.8v */
+	0x1f, 0xff, 0xff, 0xff, /* sw1, 1.2v */
+};
+
+static u8 const hbr2_3_pre_emphasis[MAX_VOLTAGE_LEVELS * MAX_PRE_EMP_LEVELS] = {
+	0x00, 0x0c, 0x15, 0x1b, /* pe0,   0 db */
+	0x02, 0x0e, 0x16, 0xff, /* pe1, 3.5 db */
+	0x02, 0x11, 0xff, 0xff, /* pe2, 6.0 db */
+	0x04, 0xff, 0xff, 0xff, /* pe3, 9.5 db */
+};
+
+static void secdp_set_default_phy_param(struct dp_parser *parser,
+			u8 lr, u8 vxpx)
+{
+	int i, j, index;
+
+	for (i = 0; i < MAX_VOLTAGE_LEVELS; i++) {
+		for (j = 0; j < MAX_PRE_EMP_LEVELS; j++) {
+			index = i * MAX_VOLTAGE_LEVELS + j;
+
+			if (lr & DP_LR_HBR_RBR) {
+				if (vxpx & DP_PARAM_VX)
+					parser->swing_hbr_rbr[index] = hbr_rbr_voltage_swing[index];
+
+				if (vxpx & DP_PARAM_PX)
+					parser->pre_emp_hbr_rbr[index] = hbr_rbr_pre_emphasis[index];
+			}
+			if (lr & DP_LR_HBR2_3) {
+				if (vxpx & DP_PARAM_VX)
+					parser->swing_hbr2_3[index] = hbr2_3_voltage_swing[index];
+
+				if (vxpx & DP_PARAM_PX)
+					parser->pre_emp_hbr2_3[index] = hbr2_3_pre_emphasis[index];
+			}
+		}
+	}
+}
+
+static u8 *_secdp_get_lr_target(struct dp_parser *parser,
+			enum secdp_link_rate_t lr,
+			enum secdp_phy_param_t vxpx, char *buf, int *len)
+{
+	u8 *target = NULL;
+	int rc = 0;
+
+	if (buf && len)
+		rc = *len;
+
+	if (lr == DP_LR_HBR_RBR) {
+		if (vxpx == DP_PARAM_VX) {
+			target = parser->swing_hbr_rbr;
+			if (buf) {
+				rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%s\n",
+							HBR_RBR_VOLTAGE_SWING);
+			}
+		} else if (vxpx == DP_PARAM_PX) {
+			target = parser->pre_emp_hbr_rbr;
+			if (buf) {
+				rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%s\n",
+							HBR_RBR_PRE_EMPHASIS);
+			}
+		} else {
+			DP_ERR("%s: invalid vxpx %d\n",
+				secdp_link_rate_to_string(lr), vxpx);
+		}
+	} else if (lr == DP_LR_HBR2_3) {
+		if (vxpx == DP_PARAM_VX) {
+			target = parser->swing_hbr2_3;
+			if (buf) {
+				rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%s\n",
+							HBR2_3_VOLTAGE_SWING);
+			}
+		} else if (vxpx == DP_PARAM_PX) {
+			target = parser->pre_emp_hbr2_3;
+			if (buf) {
+				rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%s\n",
+							HBR2_3_PRE_EMPHASIS);
+			}
+		} else {
+			DP_ERR("%s: invalid vxpx %d\n",
+				secdp_link_rate_to_string(lr), vxpx);
+		}
+	} else {
+		DP_ERR("invalid link rate %d\n", lr);
+	}
+
+	if (buf && len && (rc != *len))
+		*len = rc;
+
+	return target;
+}
+
+int secdp_parse_vxpx_show(struct dp_parser *parser, enum secdp_link_rate_t lr,
+			enum secdp_phy_param_t vxpx, char *buf)
+{
+	int i = 0, j = 0, index = 0;
+	int rc = 0;
+	u8 *target = NULL;
+
+	target = _secdp_get_lr_target(parser, lr, vxpx, buf, &rc);
+
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "=====\n");
+
+	for (i = 0; i < MAX_SWING_LEVELS; i++) {
+		for (j = 0; j < MAX_PRE_EMP_LEVELS; j++) {
+			index = i * MAX_SWING_LEVELS + j;
+			rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%02x,", target[index]);
+		}
+		rc += scnprintf(buf + rc, PAGE_SIZE - rc, "\n");
+	}
+
+	return rc;
+}
+
+int secdp_parse_vxpx_store(struct dp_parser *parser, enum secdp_link_rate_t lr,
+			enum secdp_phy_param_t vxpx, char *buf)
+{
+	u8   *tok, *target = NULL;
+	u32  value;
+	int  i, j, index = 0, rc = 0;
+
+	if (!strncmp(buf, "reset_all", strlen("reset_all"))) {
+		DP_DEBUG("[all] reset!\n");
+		secdp_set_default_phy_param(parser, DP_LR_HBR_RBR | DP_LR_HBR2_3,
+			DP_PARAM_VX | DP_PARAM_PX);
+		goto end;
+	}
+
+	if (!strncmp(buf, "reset", strlen("reset"))) {
+		DP_DEBUG("[%s,%s] reset!\n",
+			secdp_link_rate_to_string(lr), secdp_phy_type_to_string(vxpx));
+		secdp_set_default_phy_param(parser, lr, vxpx);
+		goto end;
+	}
+
+	DP_DEBUG("[%s,%s] set new params!\n",
+		secdp_link_rate_to_string(lr), secdp_phy_type_to_string(vxpx));
+
+	target = _secdp_get_lr_target(parser, lr, vxpx, NULL, NULL);
+
+	for (i = 0; i < MAX_SWING_LEVELS; i++) {
+		for (j = 0; j < MAX_PRE_EMP_LEVELS; j++) {
+			index = i * MAX_SWING_LEVELS + j;
+
+			tok = strsep(&buf, ",");
+			if (!tok)
+				continue;
+
+			rc = kstrtouint(tok, 16, &value);
+			if (rc) {
+				DP_ERR("error: %s rc:%d\n", tok, rc);
+				goto end;
+			}
+
+			target[index] = value;
+		}
+	}
+end:
+	return rc;
+}
+
+int secdp_show_phy_param(struct dp_parser *parser, char *buf)
+{
+	char tmp[SZ_1K] = {0,};
+	int  rc = 0;
+
+	secdp_parse_vxpx_show(parser, DP_LR_HBR_RBR, DP_PARAM_VX, tmp);
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%s\n", tmp);
+	memset(tmp, 0, SZ_1K);
+
+	secdp_parse_vxpx_show(parser, DP_LR_HBR_RBR, DP_PARAM_PX, tmp);
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%s\n", tmp);
+	memset(tmp, 0, SZ_1K);
+
+	secdp_parse_vxpx_show(parser, DP_LR_HBR2_3, DP_PARAM_VX, tmp);
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%s\n", tmp);
+	memset(tmp, 0, SZ_1K);
+
+	secdp_parse_vxpx_show(parser, DP_LR_HBR2_3, DP_PARAM_PX, tmp);
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "%s\n", tmp);
+
+	return rc;
+}
+#endif
+
+#if defined(CONFIG_SECDP) && IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+static const char *secdp_get_ps5169_rbr_eq0(u32 lvl)
+{
+	switch (lvl) {
+	case PHY_PS5169_EMP0:
+		return "secdp,redrv-rbr-eq0-0";
+	case PHY_PS5169_EMP1:
+		return "secdp,redrv-rbr-eq0-1";
+	case PHY_PS5169_EMP2:
+		return "secdp,redrv-rbr-eq0-2";
+	case PHY_PS5169_EMP3:
+		return "secdp,redrv-rbr-eq0-3";
+	default:
+		return "secdp,redrv-rbr-eq0-unknown";
+	}
+}
+
+static const char *secdp_get_ps5169_rbr_eq1(u32 lvl)
+{
+	switch (lvl) {
+	case PHY_PS5169_SWING0:
+		return "secdp,redrv-rbr-eq1-0";
+	case PHY_PS5169_SWING1:
+		return "secdp,redrv-rbr-eq1-1";
+	case PHY_PS5169_SWING2:
+		return "secdp,redrv-rbr-eq1-2";
+	case PHY_PS5169_SWING3:
+		return "secdp,redrv-rbr-eq1-3";
+	default:
+		return "secdp,redrv-rbr-eq1-unknown";
+	}
+}
+
+static int _secdp_parse_ps5169_rbr(struct dp_parser *parser)
+{
+	struct device_node *of_node = parser->pdev->dev.of_node;
+	int len = 0, i = 0, j = 0;
+	const char *data;
+
+	DP_ENTER("\n");
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		const char *property = secdp_get_ps5169_rbr_eq0(i);
+
+		data = of_get_property(of_node, property, &len);
+		if (!data || len != 4) {
+			DP_ERR("Unable to read %s, len:%d\n", property, len);
+			goto error;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++)
+			parser->ps5169_rbr_eq0[i][j] = data[j];
+	}
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		const char *property = secdp_get_ps5169_rbr_eq1(i);
+
+		data = of_get_property(of_node, property, &len);
+		if (!data || len != 4) {
+			DP_ERR("Unable to read %s, len:%d\n", property, len);
+			goto error;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++)
+			parser->ps5169_rbr_eq1[i][j] = data[j];
+	}
+	return 0;
+error:
+	return -EINVAL;
+}
+
+static const char *secdp_get_ps5169_hbr_eq0(u32 lvl)
+{
+	switch (lvl) {
+	case PHY_PS5169_EMP0:
+		return "secdp,redrv-hbr-eq0-0";
+	case PHY_PS5169_EMP1:
+		return "secdp,redrv-hbr-eq0-1";
+	case PHY_PS5169_EMP2:
+		return "secdp,redrv-hbr-eq0-2";
+	case PHY_PS5169_EMP3:
+		return "secdp,redrv-hbr-eq0-3";
+	default:
+		return "secdp,redrv-hbr-eq0-unknown";
+	}
+}
+
+static const char *secdp_get_ps5169_hbr_eq1(u32 lvl)
+{
+	switch (lvl) {
+	case PHY_PS5169_SWING0:
+		return "secdp,redrv-hbr-eq1-0";
+	case PHY_PS5169_SWING1:
+		return "secdp,redrv-hbr-eq1-1";
+	case PHY_PS5169_SWING2:
+		return "secdp,redrv-hbr-eq1-2";
+	case PHY_PS5169_SWING3:
+		return "secdp,redrv-hbr-eq1-3";
+	default:
+		return "secdp,redrv-hbr-eq1-unknown";
+	}
+}
+
+static int _secdp_parse_ps5169_hbr(struct dp_parser *parser)
+{
+	struct device_node *of_node = parser->pdev->dev.of_node;
+	int len = 0, i = 0, j = 0;
+	const char *data;
+
+	DP_ENTER("\n");
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		const char *property = secdp_get_ps5169_hbr_eq0(i);
+
+		data = of_get_property(of_node, property, &len);
+		if (!data || len != 4) {
+			DP_ERR("Unable to read %s, len:%d\n", property, len);
+			goto error;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++)
+			parser->ps5169_hbr_eq0[i][j] = data[j];
+	}
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		const char *property = secdp_get_ps5169_hbr_eq1(i);
+
+		data = of_get_property(of_node, property, &len);
+		if (!data || len != 4) {
+			DP_ERR("Unable to read %s, len:%d\n", property, len);
+			goto error;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++)
+			parser->ps5169_hbr_eq1[i][j] = data[j];
+	}
+	return 0;
+error:
+	return -EINVAL;
+}
+
+static const char *secdp_get_ps5169_hbr2_eq0(u32 lvl)
+{
+	switch (lvl) {
+	case PHY_PS5169_EMP0:
+		return "secdp,redrv-hbr2-eq0-0";
+	case PHY_PS5169_EMP1:
+		return "secdp,redrv-hbr2-eq0-1";
+	case PHY_PS5169_EMP2:
+		return "secdp,redrv-hbr2-eq0-2";
+	case PHY_PS5169_EMP3:
+		return "secdp,redrv-hbr2-eq0-3";
+	default:
+		return "secdp,redrv-hbr2-eq0-unknown";
+	}
+}
+
+static const char *secdp_get_ps5169_hbr2_eq1(u32 lvl)
+{
+	switch (lvl) {
+	case PHY_PS5169_SWING0:
+		return "secdp,redrv-hbr2-eq1-0";
+	case PHY_PS5169_SWING1:
+		return "secdp,redrv-hbr2-eq1-1";
+	case PHY_PS5169_SWING2:
+		return "secdp,redrv-hbr2-eq1-2";
+	case PHY_PS5169_SWING3:
+		return "secdp,redrv-hbr2-eq1-3";
+	default:
+		return "secdp,redrv-hbr2-eq1-unknown";
+	}
+}
+
+static int _secdp_parse_ps5169_hbr2(struct dp_parser *parser)
+{
+	struct device_node *of_node = parser->pdev->dev.of_node;
+	int len = 0, i = 0, j = 0;
+	const char *data;
+
+	DP_ENTER("\n");
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		const char *property = secdp_get_ps5169_hbr2_eq0(i);
+
+		data = of_get_property(of_node, property, &len);
+		if (!data || len != 4) {
+			DP_ERR("Unable to read %s, len:%d\n", property, len);
+			goto error;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++)
+			parser->ps5169_hbr2_eq0[i][j] = data[j];
+	}
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		const char *property = secdp_get_ps5169_hbr2_eq1(i);
+
+		data = of_get_property(of_node, property, &len);
+		if (!data || len != 4) {
+			DP_ERR("Unable to read %s, len:%d\n", property, len);
+			goto error;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++)
+			parser->ps5169_hbr2_eq1[i][j] = data[j];
+	}
+	return 0;
+error:
+	return -EINVAL;
+}
+
+static const char *secdp_get_ps5169_hbr3_eq0(u32 lvl)
+{
+	switch (lvl) {
+	case PHY_PS5169_EMP0:
+		return "secdp,redrv-hbr3-eq0-0";
+	case PHY_PS5169_EMP1:
+		return "secdp,redrv-hbr3-eq0-1";
+	case PHY_PS5169_EMP2:
+		return "secdp,redrv-hbr3-eq0-2";
+	case PHY_PS5169_EMP3:
+		return "secdp,redrv-hbr3-eq0-3";
+	default:
+		return "secdp,redrv-hbr3-eq0-unknown";
+	}
+}
+
+static const char *secdp_get_ps5169_hbr3_eq1(u32 lvl)
+{
+	switch (lvl) {
+	case PHY_PS5169_SWING0:
+		return "secdp,redrv-hbr3-eq1-0";
+	case PHY_PS5169_SWING1:
+		return "secdp,redrv-hbr3-eq1-1";
+	case PHY_PS5169_SWING2:
+		return "secdp,redrv-hbr3-eq1-2";
+	case PHY_PS5169_SWING3:
+		return "secdp,redrv-hbr3-eq1-3";
+	default:
+		return "secdp,redrv-hbr3-eq1-unknown";
+	}
+}
+
+static int _secdp_parse_ps5169_hbr3(struct dp_parser *parser)
+{
+	struct device_node *of_node = parser->pdev->dev.of_node;
+	int len = 0, i = 0, j = 0;
+	const char *data;
+
+	DP_ENTER("\n");
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		const char *property = secdp_get_ps5169_hbr3_eq0(i);
+
+		data = of_get_property(of_node, property, &len);
+		if (!data || len != 4) {
+			DP_ERR("Unable to read %s, len:%d\n", property, len);
+			goto error;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++)
+			parser->ps5169_hbr3_eq0[i][j] = data[j];
+	}
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		const char *property = secdp_get_ps5169_hbr3_eq1(i);
+
+		data = of_get_property(of_node, property, &len);
+		if (!data || len != 4) {
+			DP_ERR("Unable to read %s, len:%d\n", property, len);
+			goto error;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++)
+			parser->ps5169_hbr3_eq1[i][j] = data[j];
+	}
+	return 0;
+error:
+	return -EINVAL;
+}
+
+static void secdp_parse_ps5169_param(struct dp_parser *parser)
+{
+	_secdp_parse_ps5169_rbr(parser);
+	_secdp_parse_ps5169_hbr(parser);
+	_secdp_parse_ps5169_hbr2(parser);
+	_secdp_parse_ps5169_hbr3(parser);
+}
+
+/*********************************************
+ ***    default PS5169 DP EQ0/EQ1 params   ***
+ *********************************************/
+#define EQ0 0x20
+#define EQ1 0x06
+
+static u8 const ps5169_rbr_eq0[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS] = {
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0}
+};
+
+/* voltage swing, 0.2v and 1.0v are not support */
+static u8 const ps5169_rbr_eq1[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS] = {
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1}
+};
+
+static u8 const ps5169_hbr_eq0[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS] = {
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0}
+};
+
+static u8 const ps5169_hbr_eq1[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS] = {
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1}
+};
+
+static u8 const ps5169_hbr2_eq0[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS] = {
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0}
+};
+
+static u8 const ps5169_hbr2_eq1[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS] = {
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1}
+};
+
+static u8 const ps5169_hbr3_eq0[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS] = {
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0},
+	{EQ0, EQ0, EQ0, EQ0}
+};
+
+static u8 const ps5169_hbr3_eq1[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS] = {
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1},
+	{EQ1, EQ1, EQ1, EQ1}
+};
+
+static void secdp_set_default_ps5169_param(struct dp_parser *parser,
+			enum secdp_ps5169_eq_t eq, enum secdp_ps5169_link_rate_t link_rate)
+{
+	int i, j;
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++) {
+			if (eq == DP_PS5169_EQ_MAX || eq == DP_PS5169_EQ0) {
+				if (link_rate == DP_PS5169_RATE_MAX ||
+						link_rate == DP_PS5169_RATE_RBR) {
+					parser->ps5169_rbr_eq0[i][j] = ps5169_rbr_eq0[i][j];
+				}
+				if (link_rate == DP_PS5169_RATE_MAX ||
+						link_rate == DP_PS5169_RATE_HBR) {
+					parser->ps5169_hbr_eq0[i][j] = ps5169_hbr_eq0[i][j];
+				}
+				if (link_rate == DP_PS5169_RATE_MAX ||
+						link_rate == DP_PS5169_RATE_HBR2) {
+					parser->ps5169_hbr2_eq0[i][j] = ps5169_hbr2_eq0[i][j];
+				}
+				if (link_rate == DP_PS5169_RATE_MAX ||
+						link_rate == DP_PS5169_RATE_HBR3) {
+					parser->ps5169_hbr3_eq0[i][j] = ps5169_hbr3_eq0[i][j];
+				}
+			}
+			if (eq == DP_PS5169_EQ_MAX || eq == DP_PS5169_EQ1) {
+				if (link_rate == DP_PS5169_RATE_MAX ||
+						link_rate == DP_PS5169_RATE_RBR) {
+					parser->ps5169_rbr_eq1[i][j] = ps5169_rbr_eq1[i][j];
+				}
+				if (link_rate == DP_PS5169_RATE_MAX ||
+						link_rate == DP_PS5169_RATE_HBR) {
+					parser->ps5169_hbr_eq1[i][j] = ps5169_hbr_eq1[i][j];
+				}
+				if (link_rate == DP_PS5169_RATE_MAX ||
+						link_rate == DP_PS5169_RATE_HBR2) {
+					parser->ps5169_hbr2_eq1[i][j] = ps5169_hbr2_eq1[i][j];
+				}
+				if (link_rate == DP_PS5169_RATE_MAX ||
+						link_rate == DP_PS5169_RATE_HBR3) {
+					parser->ps5169_hbr3_eq1[i][j] = ps5169_hbr3_eq1[i][j];
+				}
+			}
+		}
+	}
+}
+
+#if defined(CONFIG_SECDP_DBG)
+static u8 *_secdp_get_ps5169_param(struct dp_parser *parser, enum secdp_ps5169_eq_t eq,
+			enum secdp_ps5169_link_rate_t link_rate, int idx)
+{
+	u8 *val = NULL;
+
+	switch (eq) {
+	case DP_PS5169_EQ0:
+		switch (link_rate) {
+		case DP_PS5169_RATE_RBR:
+			val = parser->ps5169_rbr_eq0[idx];
+			break;
+		case DP_PS5169_RATE_HBR:
+			val = parser->ps5169_hbr_eq0[idx];
+			break;
+		case DP_PS5169_RATE_HBR2:
+			val = parser->ps5169_hbr2_eq0[idx];
+			break;
+		case DP_PS5169_RATE_HBR3:
+			val = parser->ps5169_hbr3_eq0[idx];
+			break;
+		default:
+			DP_ERR("unknown rate: %d\n", link_rate);
+			break;
+		}
+		break;
+	case DP_PS5169_EQ1:
+		switch (link_rate) {
+		case DP_PS5169_RATE_RBR:
+			val = parser->ps5169_rbr_eq1[idx];
+			break;
+		case DP_PS5169_RATE_HBR:
+			val = parser->ps5169_hbr_eq1[idx];
+			break;
+		case DP_PS5169_RATE_HBR2:
+			val = parser->ps5169_hbr2_eq1[idx];
+			break;
+		case DP_PS5169_RATE_HBR3:
+			val = parser->ps5169_hbr3_eq1[idx];
+			break;
+		default:
+			DP_ERR("unknown rate: %d\n", link_rate);
+			break;
+		}
+		break;
+	default:
+		DP_ERR("unknown eq:%d\n", eq);
+		break;
+	}
+
+	return val;
+}
+
+int secdp_parse_ps5169_show(struct dp_parser *parser, enum secdp_ps5169_eq_t eq,
+		enum secdp_ps5169_link_rate_t link_rate, char *buf)
+{
+	u8 *val[MAX_PS5169_SWING_LEVELS];
+	int i, rc = 0;
+
+	rc += scnprintf(buf + rc, PAGE_SIZE - rc, "\n%s | %s\n=====\n",
+				secdp_ps5169_eq_to_string(eq),
+				secdp_ps5169_rate_to_string(link_rate));
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		val[i] = _secdp_get_ps5169_param(parser, eq, link_rate, i);
+		if (!val[i])
+			break;
+
+		rc += scnprintf(buf + rc, PAGE_SIZE - rc,
+				"%02x,%02x,%02x,%02x",
+				val[i][0], val[i][1], val[i][2], val[i][3]);
+
+		if (i < MAX_PS5169_SWING_LEVELS - 1)
+			rc += scnprintf(buf + rc, PAGE_SIZE - rc, ",\n");
+		else
+			rc += scnprintf(buf + rc, PAGE_SIZE - rc, "\n");
+	}
+
+	return rc;
+}
+
+int secdp_parse_ps5169_store(struct dp_parser *parser,
+		enum secdp_ps5169_eq_t eq, enum secdp_ps5169_link_rate_t link_rate, char *buf)
+{
+	u8   *val[MAX_PS5169_SWING_LEVELS];
+	char *tok;
+	u32  value;
+	int  i, j, rc = 0;
+
+	if (!strncmp(buf, "reset_all", strlen("reset_all"))) {
+		DP_DEBUG("[all] reset!\n");
+		secdp_set_default_ps5169_param(parser, DP_PS5169_EQ_MAX, DP_PS5169_RATE_MAX);
+		goto end;
+	}
+
+	if (!strncmp(buf, "reset", strlen("reset"))) {
+		DP_DEBUG("[%s,%s] reset!\n", secdp_ps5169_eq_to_string(eq),
+			secdp_ps5169_rate_to_string(link_rate));
+		secdp_set_default_ps5169_param(parser, eq, link_rate);
+		goto end;
+	}
+
+	DP_DEBUG("[%s,%s] set new params!\n", secdp_ps5169_eq_to_string(eq),
+		secdp_ps5169_rate_to_string(link_rate));
+
+	for (i = 0; i < MAX_PS5169_SWING_LEVELS; i++) {
+		val[i] = _secdp_get_ps5169_param(parser, eq, link_rate, i);
+		if (!val[i]) {
+			rc = -EINVAL;
+			break;
+		}
+
+		for (j = 0; j < MAX_PS5169_EMP_LEVELS; j++) {
+			tok = strsep(&buf, ",");
+			if (!tok)
+				continue;
+
+			rc = kstrtouint(tok, 16, &value);
+			if (rc) {
+				DP_ERR("error: %s rc:%d\n", tok, rc);
+				goto end;
+			}
+
+			val[i][j] = value;
+		}
+	}
+end:
+	return rc;
+}
+
+int secdp_show_ps5169_param(struct dp_parser *parser, char *buf)
+{
+	int  eq, rc = 0;
+
+	for (eq = 0; eq < DP_PS5169_EQ_MAX; eq++) {
+		rc += secdp_parse_ps5169_show(parser, eq, DP_PS5169_RATE_RBR, buf + rc);
+		rc += secdp_parse_ps5169_show(parser, eq, DP_PS5169_RATE_HBR, buf + rc);
+		rc += secdp_parse_ps5169_show(parser, eq, DP_PS5169_RATE_HBR2, buf + rc);
+		rc += secdp_parse_ps5169_show(parser, eq, DP_PS5169_RATE_HBR3, buf + rc);
+	}
+
+	return rc;
+}
+#endif/*CONFIG_SECDP_DBG*/
+#endif/*CONFIG_COMBO_REDRIVER_PS5169*/
 
 static int dp_parser_parse(struct dp_parser *parser)
 {
@@ -854,6 +1787,8 @@ static int dp_parser_parse(struct dp_parser *parser)
 		rc = -EINVAL;
 		goto err;
 	}
+
+	DP_ENTER("\n");
 
 	rc = dp_parser_reg(parser);
 	if (rc)
@@ -900,6 +1835,9 @@ static int dp_parser_parse(struct dp_parser *parser)
 	dp_parser_widebus(parser);
 	dp_parser_qos(parser);
 	dp_parser_link_training_params(parser);
+#if defined(CONFIG_SECDP)
+	secdp_parse_misc(parser);
+#endif
 err:
 	return rc;
 }
@@ -986,6 +1924,11 @@ struct dp_parser *dp_parser_get(struct platform_device *pdev)
 	parser->clear_io_buf = dp_parser_clear_io_buf;
 	parser->pdev = pdev;
 
+#if defined(CONFIG_SECDP)
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+	secdp_set_default_ps5169_param(parser, DP_PS5169_EQ_MAX, DP_PS5169_RATE_MAX);
+#endif
+#endif
 	return parser;
 }
 

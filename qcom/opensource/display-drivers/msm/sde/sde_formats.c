@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -11,6 +10,9 @@
 
 #include "sde_kms.h"
 #include "sde_formats.h"
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#include "ss_dsi_panel_common.h"
+#endif
 
 #define SDE_UBWC_META_MACRO_W_H		16
 #define SDE_UBWC_META_BLOCK_SIZE	256
@@ -1050,6 +1052,13 @@ static int _sde_format_populate_addrs_ubwc(
 		layout->plane_addr[3] = 0;
 	}
 done:
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG) && IS_ENABLED(CONFIG_SEC_DEBUG)
+	if (sec_debug_is_enabled()) {
+		ss_image_logging_update(base_addr,
+			layout->width, layout->height,
+			layout->format->base.pixel_format);
+	}
+#endif
 	return 0;
 }
 
@@ -1336,21 +1345,21 @@ int sde_format_validate_fmt(struct msm_kms *kms,
 
 	while (fmt_list->fourcc_format) {
 		fmt_tmp = sde_get_sde_format_ext(fmt_list->fourcc_format,
-			fmt_list->modifier);
-		if (fmt_tmp &&
-			(fmt_tmp->base.pixel_format == sde_fmt->base.pixel_format) &&
-			(fmt_tmp->fetch_mode == sde_fmt->fetch_mode) &&
-			(bitmap_equal(fmt_tmp->flag, sde_fmt->flag, SDE_FORMAT_FLAG_BIT_MAX)) &&
-			(fmt_tmp->unpack_tight == sde_fmt->unpack_tight)) {
+					fmt_list->modifier);
+		if (fmt_tmp
+		  && (fmt_tmp->base.pixel_format == sde_fmt->base.pixel_format)
+		  && (fmt_tmp->fetch_mode == sde_fmt->fetch_mode)) {
 			valid_format = true;
 			break;
 		}
 		++fmt_list;
 	}
 
-	if (!valid_format)
-
+	if (!valid_format) {
+		SDE_ERROR("fmt:%d mode:%d not found within the list!\n",
+			sde_fmt->base.pixel_format, sde_fmt->fetch_mode);
 		ret = -EINVAL;
+	}
 exit:
 	return ret;
 }

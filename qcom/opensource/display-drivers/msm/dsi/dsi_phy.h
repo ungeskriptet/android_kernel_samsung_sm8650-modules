@@ -70,6 +70,7 @@ enum phy_ulps_return_type {
  * @power_state:       True if PHY is powered on.
  * @dsi_phy_state:     PHY state information.
  * @mode:              Current mode.
+ * @data_lanes:        Number of data lanes used.
  * @dst_format:        Destination format.
  * @pll:	       Pointer to PLL resource.
  * @allow_phy_power_off: True if PHY is allowed to power off when idle
@@ -96,6 +97,7 @@ struct msm_dsi_phy {
 	enum phy_engine_state dsi_phy_state;
 	bool power_state;
 	struct dsi_mode_info mode;
+	enum dsi_data_lanes data_lanes;
 	enum dsi_pixel_format dst_format;
 
 	struct dsi_pll_resource *pll;
@@ -419,4 +421,13 @@ int dsi_phy_dynclk_configure(struct msm_dsi_phy *phy);
  * @phy:	DSI PHY handle
  */
 void dsi_phy_pll_parse_dfps_data(struct msm_dsi_phy *phy);
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+void dsi_phy_store_str(struct msm_dsi_phy *phy, u32 *val);
+u32 dsi_phy_show_str(struct msm_dsi_phy *phy);
+void dsi_phy_store_vreg(struct msm_dsi_phy *phy, u32 *val);
+u32 dsi_phy_show_vreg(struct msm_dsi_phy *phy);
+void dsi_phy_store_emphasis(struct msm_dsi_phy *phy, u32 *val);
+#endif
+
 #endif /* _DSI_PHY_H_ */

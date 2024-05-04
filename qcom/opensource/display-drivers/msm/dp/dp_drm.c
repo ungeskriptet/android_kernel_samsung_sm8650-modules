@@ -14,6 +14,9 @@
 #include "dp_drm.h"
 #include "dp_mst_drm.h"
 #include "dp_debug.h"
+#if defined(CONFIG_SECDP)
+#include "secdp.h"
+#endif
 
 #define DP_MST_DEBUG(fmt, ...) DP_DEBUG(fmt, ##__VA_ARGS__)
 
@@ -85,6 +88,8 @@ static void dp_bridge_pre_enable(struct drm_bridge *drm_bridge)
 		return;
 	}
 
+	DP_ENTER("\n");
+
 	bridge = to_dp_bridge(drm_bridge);
 	dp = bridge->display;
 
@@ -133,6 +138,8 @@ static void dp_bridge_enable(struct drm_bridge *drm_bridge)
 		return;
 	}
 
+	DP_ENTER("\n");
+
 	bridge = to_dp_bridge(drm_bridge);
 	if (!bridge->connector) {
 		DP_ERR("Invalid connector\n");
@@ -162,6 +169,8 @@ static void dp_bridge_disable(struct drm_bridge *drm_bridge)
 		DP_ERR("Invalid params\n");
 		return;
 	}
+
+	DP_ENTER("\n");
 
 	bridge = to_dp_bridge(drm_bridge);
 	if (!bridge->connector) {
@@ -201,6 +210,8 @@ static void dp_bridge_post_disable(struct drm_bridge *drm_bridge)
 		DP_ERR("Invalid params\n");
 		return;
 	}
+
+	DP_ENTER("\n");
 
 	bridge = to_dp_bridge(drm_bridge);
 	if (!bridge->connector) {
@@ -381,7 +392,7 @@ int dp_connector_set_colorspace(struct drm_connector *connector,
 
 	sde_conn = to_sde_connector(connector);
 	if (!sde_conn->drv_panel) {
-		pr_err("invalid dp panel\n");
+		DP_ERR("invalid dp panel\n");
 		return -EINVAL;
 	}
 
@@ -626,7 +637,7 @@ int dp_connector_get_modes(struct drm_connector *connector,
 		 */
 		rc = dp->get_modes(dp, sde_conn->drv_panel, dp_mode);
 		if (!rc) {
-			DP_WARN("failed to get DP sink modes, adding failsafe");
+			DP_WARN("failed to get DP sink modes, adding failsafe\n");
 			init_failsafe_mode(dp_mode);
 		}
 		if (dp_mode->timing.pixel_clk_khz) /* valid DP mode */
@@ -726,17 +737,12 @@ enum drm_mode_status dp_connector_mode_valid(struct drm_connector *connector,
 		return MODE_ERROR;
 	}
 
-	/* As per spec, failsafe mode should always be present */
-	if ((mode->hdisplay == 640) && (mode->vdisplay == 480) && (mode->clock == 25175))
-		goto validate_mode;
-
 	if (dp_panel->mode_override && (mode->hdisplay != dp_panel->hdisplay ||
 			mode->vdisplay != dp_panel->vdisplay ||
 			vrefresh != dp_panel->vrefresh ||
 			mode->picture_aspect_ratio != dp_panel->aspect_ratio))
 		return MODE_BAD;
 
-validate_mode:
 	return dp_disp->validate_mode(dp_disp, sde_conn->drv_panel,
 			mode, &avail_dp_res);
 }

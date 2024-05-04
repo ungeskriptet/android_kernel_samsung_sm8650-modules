@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -10,6 +10,12 @@
 #include <linux/pm_runtime.h>
 #include "dsi_clk.h"
 #include "dsi_defs.h"
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#include "sde_dbg.h"
+#include "ss_dsi_panel_common.h"
+#include "ss_panel_power.h"
+#endif
 
 struct dsi_core_clks {
 	struct dsi_core_clk_info clks;
@@ -107,30 +113,6 @@ int dsi_clk_set_link_frequencies(void *client, struct link_clk_freq freq,
 }
 
 /**
- * dsi_clk_get_link_frequencies() - get link clk frequencies
- * @link_freq:       Structure to get link clock frequencies
- * @client:     DSI clock client pointer.
- * @index:      Index of the DSI controller.
- *
- * return: error code in case of failure or 0 for success.
- */
-int dsi_clk_get_link_frequencies(struct link_clk_freq *link_freq, void *client, u32 index)
-{
-	struct dsi_clk_client_info *c = client;
-	struct dsi_clk_mngr *mngr;
-
-	if (!client || !link_freq) {
-		DSI_ERR("invalid params\n");
-		return -EINVAL;
-	}
-
-	mngr = c->mngr;
-	memcpy(link_freq, &mngr->link_clks[index].freq, sizeof(struct link_clk_freq));
-
-	return 0;
-}
-
-/**
  * dsi_clk_set_pixel_clk_rate() - set frequency for pixel clock
  * @clks:	DSI link clock information.
  * @pixel_clk:	Pixel clock rate in KHz.
@@ -211,12 +193,18 @@ int dsi_clk_update_parent(struct dsi_clk_link_set *parent,
 	rc = clk_set_parent(child->byte_clk, parent->byte_clk);
 	if (rc) {
 		DSI_ERR("failed to set byte clk parent\n");
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+		SDE_DBG_DUMP(SDE_DBG_BUILT_IN_ALL, "panic");
+#endif
 		goto error;
 	}
 
 	rc = clk_set_parent(child->pixel_clk, parent->pixel_clk);
 	if (rc) {
 		DSI_ERR("failed to set pixel clk parent\n");
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+		SDE_DBG_DUMP(SDE_DBG_BUILT_IN_ALL, "panic");
+#endif
 		goto error;
 	}
 error:
@@ -672,6 +660,11 @@ static int dsi_display_link_clk_enable(struct dsi_link_clks *clks,
 		}
 	}
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	if ((l_type & DSI_LINK_LP_CLK) && (ctrl_count == 1))
+		ss_panel_power_on_middle_lp_hs_clk();
+#endif
+
 	if (l_type & DSI_LINK_HS_CLK) {
 		if (!mngr->is_cont_splash_enabled) {
 			mngr->phy_config_cb(mngr->priv_data, true);
@@ -698,6 +691,9 @@ static int dsi_display_link_clk_enable(struct dsi_link_clks *clks,
 						rc);
 				goto error_disable_master;
 			}
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+			ss_panel_power_on_middle_lp_hs_clk();
+#endif
 		}
 
 		if (l_type & DSI_LINK_HS_CLK) {
@@ -786,6 +782,9 @@ static int dsi_display_link_clk_disable(struct dsi_link_clks *clks,
 			continue;
 
 		if (l_type & DSI_LINK_LP_CLK) {
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+			ss_panel_power_off_middle_lp_hs_clk();
+#endif
 			rc = dsi_link_lp_clk_stop(&clk->lp_clks);
 			if (rc)
 				DSI_ERR("failed to turn off lp link clocks, rc=%d\n",
@@ -1255,6 +1254,12 @@ int dsi_clk_req_state(void *client, enum dsi_clk_type clk,
 	}
 
 	mutex_unlock(&mngr->clk_mutex);
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	if (clk & DSI_LINK_CLK)
+		ss_dct_update_ref(mngr->master_ndx, DCT_TAG_LINK_CLK, state);
+#endif
+
 	return rc;
 }
 
@@ -1528,30 +1533,4 @@ int dsi_display_clk_mngr_deregister(void *clk_mngr)
 	DSI_DEBUG("%s: EXIT, rc = %d\n", mngr->name, rc);
 	kfree(mngr);
 	return rc;
-}
-
-/**
- * dsi_clk_acquire_mngr_lock() - acquire clk manager mutex lock
- * @client:       DSI clock client pointer.
- */
-void dsi_clk_acquire_mngr_lock(void *client)
-{
-	struct dsi_clk_mngr *mngr;
-	struct dsi_clk_client_info *c = client;
-
-	mngr = c->mngr;
-	mutex_lock(&mngr->clk_mutex);
-}
-
-/**
- * dsi_clk_release_mngr_lock() - release clk manager mutex lock
- * @client:       DSI clock client pointer.
- */
-void dsi_clk_release_mngr_lock(void *client)
-{
-	struct dsi_clk_mngr *mngr;
-	struct dsi_clk_client_info *c = client;
-
-	mngr = c->mngr;
-	mutex_unlock(&mngr->clk_mutex);
 }

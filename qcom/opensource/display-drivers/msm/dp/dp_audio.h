@@ -22,6 +22,9 @@ struct dp_audio {
 	u32 lane_count;
 	u32 bw_code;
 	bool tui_active;
+#if defined(CONFIG_SECDP_SWITCH)
+	bool has_mst;
+#endif
 
 	/**
 	 * on()
@@ -73,4 +76,9 @@ struct dp_audio *dp_audio_get(struct platform_device *pdev,
  * @dp_audio: an instance of dp_audio.
  */
 void dp_audio_put(struct dp_audio *dp_audio);
+
+#if defined(CONFIG_SECDP_SWITCH)
+int secdp_audio_register_switch(struct dp_audio *dp_audio);
+#endif
+
 #endif /* _DP_AUDIO_H_ */

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of_device.h>
@@ -803,7 +803,7 @@ static inline int dsi_phy_get_data_lanes_count(struct msm_dsi_phy *phy)
 	int num_of_lanes = 0;
 	enum dsi_data_lanes dlanes;
 
-	dlanes = phy->cfg.data_lanes;
+	dlanes = phy->data_lanes;
 
 	/**
 	  * For split link use case effective data lines need to be used
@@ -1028,8 +1028,8 @@ int dsi_phy_enable(struct msm_dsi_phy *phy,
 
 	memcpy(&phy->mode, &config->video_timing, sizeof(phy->mode));
 	memcpy(&phy->cfg.lane_map, &config->lane_map, sizeof(config->lane_map));
+	phy->data_lanes = config->common_config.data_lanes;
 	phy->dst_format = config->common_config.dst_format;
-	phy->cfg.data_lanes = config->common_config.data_lanes;
 	phy->cfg.pll_source = pll_source;
 	phy->cfg.bit_clk_rate_hz = config->bit_clk_rate_hz;
 
@@ -1443,6 +1443,42 @@ void dsi_phy_set_continuous_clk(struct msm_dsi_phy *phy, bool enable)
 	mutex_unlock(&phy->phy_lock);
 
 }
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+void dsi_phy_store_str(struct msm_dsi_phy *phy, u32 *val)
+{
+	if (phy->hw.ops.store_str)
+		phy->hw.ops.store_str(&phy->hw, val);
+}
+u32 dsi_phy_show_str(struct msm_dsi_phy *phy)
+{
+	u32 ret = 0;
+
+	if (phy->hw.ops.show_str)
+		ret = phy->hw.ops.show_str(&phy->hw);
+
+	return ret;
+}
+void dsi_phy_store_vreg(struct msm_dsi_phy *phy, u32 *val)
+{
+	if (phy->hw.ops.store_vreg)
+		phy->hw.ops.store_vreg(&phy->hw, val);
+}
+u32 dsi_phy_show_vreg(struct msm_dsi_phy *phy)
+{
+	u32 ret = 0;
+
+	if (phy->hw.ops.show_vreg)
+		ret = phy->hw.ops.show_vreg(&phy->hw);
+
+	return ret;
+}
+void dsi_phy_store_emphasis(struct msm_dsi_phy *phy, u32 *val)
+{
+	if (phy->hw.ops.store_emphasis)
+		phy->hw.ops.store_emphasis(&phy->hw, val);
+}
+#endif
 
 /**
  * dsi_phy_pll_parse_dfps_data() - parse dfps data for PLL

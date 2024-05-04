@@ -104,7 +104,6 @@ struct intf_wd_jitter_params {
  * @get_wd_ltj_status: Read WD long term jitter status.
  * @bind_pingpong_blk: enable/disable the connection with pingpong which will
  *                     feed pixels to this interface
- * @get_autorefresh_status: Check the status of autorefresh is busy or idle
  */
 struct sde_hw_intf_ops {
 	void (*setup_timing_gen)(struct sde_hw_intf *intf,
@@ -148,7 +147,6 @@ struct sde_hw_intf_ops {
 	void (*bind_pingpong_blk)(struct sde_hw_intf *intf,
 			bool enable,
 			const enum sde_pingpong pp);
-	u32 (*get_autorefresh_status)(struct sde_hw_intf *intf);
 
 	/**
 	 * enables vysnc generation and sets up init value of
@@ -162,6 +160,18 @@ struct sde_hw_intf_ops {
 	 */
 	int (*enable_tearcheck)(struct sde_hw_intf *intf,
 			bool enable);
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	/**
+	 * updates start pos, tearcheck configuration
+	 */
+	u32 (*get_start)(struct sde_hw_intf *intf);
+	/**
+	 * updates start pos, tearcheck configuration
+	 */
+	void (*update_start)(struct sde_hw_intf *intf,
+			struct sde_hw_tear_check *cfg);
+#endif
 
 	/**
 	 * updates tearcheck configuration

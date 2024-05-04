@@ -46,9 +46,16 @@ struct dp_ctrl_in {
 	struct dp_power *power;
 	struct dp_catalog_ctrl *catalog;
 	struct dp_pll *pll;
+#if defined(CONFIG_SECDP)
+	struct secdp_misc *sec;
+#endif
 };
 
 struct dp_ctrl *dp_ctrl_get(struct dp_ctrl_in *in);
 void dp_ctrl_put(struct dp_ctrl *dp_ctrl);
+
+#if defined(CONFIG_SECDP)
+bool secdp_get_link_train_status(struct dp_ctrl *dp_ctrl);
+#endif
 
 #endif /* _DP_CTRL_H_ */

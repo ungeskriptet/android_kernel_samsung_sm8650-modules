@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -9,7 +9,6 @@
 #include <linux/clk.h>
 #include <linux/debugfs.h>
 #include <linux/kernel.h>
-#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/iommu.h>
 #include <linux/of.h>
@@ -18,7 +17,6 @@
 #include <linux/dma-buf.h>
 #include <linux/of_platform.h>
 #include <linux/msm_dma_iommu_mapping.h>
-#include <linux/qcom-iommu-util.h>
 
 #include "soc/qcom/secure_buffer.h"
 #include "sde_rotator_base.h"
@@ -26,6 +24,12 @@
 #include "sde_rotator_io_util.h"
 #include "sde_rotator_smmu.h"
 #include "sde_rotator_debug.h"
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#include <linux/delay.h>
+#include "../msm/samsung/ss_dsi_panel_debug.h"
+#include <linux/sec_debug.h>
+#endif
 
 #define SMMU_SDE_ROT_SEC	"qcom,smmu_sde_rot_sec"
 #define SMMU_SDE_ROT_UNSEC	"qcom,smmu_sde_rot_unsec"
@@ -217,10 +221,11 @@ int sde_smmu_attach(struct sde_rot_data_type *mdata)
 				sde_smmu_is_valid_domain_condition(mdata,
 						i,
 						true)) {
-				rc = qcom_iommu_sid_switch(sde_smmu->dev, SID_ACQUIRE);
+				rc = iommu_attach_device(
+					sde_smmu->rot_domain, sde_smmu->dev);
 				if (rc) {
 					SDEROT_ERR(
-						"iommu sid switch failed for domain[%d] with err:%d\n",
+						"iommu attach device failed for domain[%d] with err:%d\n",
 						i, rc);
 					sde_smmu_enable_power(sde_smmu,
 						false);
@@ -259,7 +264,7 @@ err:
 int sde_smmu_detach(struct sde_rot_data_type *mdata)
 {
 	struct sde_smmu_client *sde_smmu;
-	int i, rc;
+	int i;
 
 	for (i = 0; i < SDE_IOMMU_MAX_DOMAIN; i++) {
 		if (!sde_smmu_is_valid_domain_type(mdata, i))
@@ -270,14 +275,12 @@ int sde_smmu_detach(struct sde_rot_data_type *mdata)
 			if (sde_smmu->domain_attached &&
 				sde_smmu_is_valid_domain_condition(mdata,
 					i, false)) {
-				rc = qcom_iommu_sid_switch(sde_smmu->dev, SID_RELEASE);
-				if (rc)
-					SDEROT_ERR("iommu sid switch failed (%d)\n", rc);
-				else {
-					SDEROT_DBG("iommu domain[%i] detached\n", i);
-					sde_smmu->domain_attached = false;
+				iommu_detach_device(sde_smmu->rot_domain,
+							sde_smmu->dev);
+				SDEROT_DBG("iommu domain[%i] detached\n", i);
+				sde_smmu->domain_attached = false;
 				}
-			} else {
+			else {
 				sde_smmu_enable_power(sde_smmu, false);
 			}
 		}
@@ -323,6 +326,9 @@ int sde_smmu_map_dma_buf(struct dma_buf *dma_buf,
 	int rc;
 	struct sde_smmu_client *sde_smmu = sde_smmu_get_cb(domain);
 	unsigned long attrs = 0;
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+		int retry_cnt;
+#endif
 
 	if (!sde_smmu) {
 		SDEROT_ERR("not able to get smmu context\n");
@@ -331,6 +337,23 @@ int sde_smmu_map_dma_buf(struct dma_buf *dma_buf,
 
 	rc = dma_map_sg_attrs(sde_smmu->dev, table->sgl, table->nents, dir,
 			attrs);
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	if (!in_interrupt()) {
+		if (!rc) {
+			for (retry_cnt = 0; retry_cnt < 62 ; retry_cnt++) {
+				/* To wait free page by memory reclaim*/
+				usleep_range(16000, 16000);
+
+				SDEROT_ERR("dma map sg failed : retry (%d)\n", retry_cnt);
+				rc = dma_map_sg_attrs(sde_smmu->dev, table->sgl, table->nents, dir,
+						attrs);
+
+				if (!rc)
+					break;
+			}
+		}
+	}
+#endif
 	if (!rc) {
 		SDEROT_ERR("dma map sg failed\n");
 		return -ENOMEM;
@@ -338,6 +361,10 @@ int sde_smmu_map_dma_buf(struct dma_buf *dma_buf,
 
 	*iova = table->sgl->dma_address;
 	*size = table->sgl->dma_length;
+#if 0 // IS_ENABLED(CONFIG_DISPLAY_SAMSUNG) && IS_ENABLED(CONFIG_SEC_DEBUG) // ksj tmp
+	if (sec_debug_is_enabled())
+		ss_smmu_debug_map(SMMU_NRT_ROTATOR_DEBUG, table);
+#endif
 	return 0;
 }
 
@@ -350,6 +377,11 @@ void sde_smmu_unmap_dma_buf(struct sg_table *table, int domain,
 		SDEROT_ERR("not able to get smmu context\n");
 		return;
 	}
+
+#if 0 // IS_ENABLED(CONFIG_DISPLAY_SAMSUNG) && IS_ENABLED(CONFIG_SEC_DEBUG) // ksj tmp
+	if (sec_debug_is_enabled())
+		ss_smmu_debug_unmap(SMMU_NRT_ROTATOR_DEBUG, table);
+#endif
 
 	dma_unmap_sg(sde_smmu->dev, table->sgl, table->nents, dir);
 }
@@ -476,6 +508,10 @@ static int sde_smmu_fault_handler(struct iommu_domain *domain,
 	SDEROT_ERR("trigger rotator dump, iova=0x%08lx, flags=0x%x\n",
 			iova, flags);
 	SDEROT_ERR("SMMU device:%s", sde_smmu->dev->kobj.name);
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	ss_smmu_debug_log();
+#endif
 
 	/* generate dump, but no panic */
 	SDEROT_EVTLOG_TOUT_HANDLER("rot", "rot_dbg_bus", "vbif_dbg_bus");

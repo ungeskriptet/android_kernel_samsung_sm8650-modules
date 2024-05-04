@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 #define pr_fmt(fmt)	"%s: " fmt, __func__
@@ -53,6 +53,27 @@
 
 #if defined(CONFIG_MSM_SDE_ROTATOR_EVTLOG_DEBUG) && \
 	defined(CONFIG_DEBUG_FS)
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+/**
+ * To pulling out 256 * 4 eventlog line & print to kernel log
+ */
+#undef SDE_EVTLOG_DEFAULT_REGDUMP
+#undef SDE_EVTLOG_DEFAULT_VBIF_DBGBUSDUMP
+#undef SDE_EVTLOG_DEFAULT_ROT_DBGBUSDUMP
+
+#define SDE_EVTLOG_DEFAULT_REGDUMP SDE_ROT_DBG_DUMP_IN_LOG
+#define SDE_EVTLOG_DEFAULT_VBIF_DBGBUSDUMP SDE_ROT_DBG_DUMP_IN_LOG
+#define SDE_EVTLOG_DEFAULT_ROT_DBGBUSDUMP SDE_ROT_DBG_DUMP_IN_LOG
+
+
+#undef SDE_ROT_EVTLOG_PRINT_ENTRY
+#undef SDE_ROT_EVTLOG_ENTRY
+
+#define SDE_ROT_EVTLOG_PRINT_ENTRY	(256 * 4)
+#define SDE_ROT_EVTLOG_ENTRY	SDE_ROT_EVTLOG_PRINT_ENTRY
+#endif
+
 static DEFINE_SPINLOCK(sde_rot_xlock);
 
 /*
@@ -882,7 +903,11 @@ static int sde_rotator_base_create_debugfs(
 	debugfs_create_u32("iommu_ref_cnt", 0444, debugfs_root, &mdata->iommu_ref_cnt);
 
 	mdata->clk_always_on = false;
-	debugfs_create_bool("clk_always_on", 0644, debugfs_root, &mdata->clk_always_on);
+	if (!debugfs_create_bool("clk_always_on", 0644,
+			debugfs_root, &mdata->clk_always_on)) {
+		SDEROT_WARN("failed to create debugfs clk_always_on\n");
+		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -904,7 +929,11 @@ static int sde_rotator_core_create_debugfs(
 
 	debugfs_create_u32("ppc_denom", 0600, debugfs_root, &mgr->pixel_per_clk.denom);
 
-	debugfs_create_u64("enable_bw_vote", 0644, debugfs_root, &mgr->enable_bw_vote);
+	if (!debugfs_create_u64("enable_bw_vote", 0644,
+			debugfs_root, &mgr->enable_bw_vote)) {
+		SDEROT_WARN("failed to create enable_bw_vote\n");
+		return -EINVAL;
+	}
 
 	if (mgr->ops_hw_create_debugfs) {
 		ret = mgr->ops_hw_create_debugfs(mgr, debugfs_root);

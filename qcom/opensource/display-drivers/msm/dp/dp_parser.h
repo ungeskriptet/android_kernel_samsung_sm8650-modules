@@ -182,6 +182,42 @@ static inline char *dp_phy_aux_config_type_to_string(u32 cfg_type)
 	}
 }
 
+#if defined(CONFIG_SECDP)
+enum secdp_phy_pre_emphasis_type {
+	PHY_PRE_EMP0,		/* 0   db */
+	PHY_PRE_EMP1,		/* 3.5 db */
+	PHY_PRE_EMP2,		/* 6.0 db */
+	PHY_PRE_EMP3,		/* 9.5 db */
+//	MAX_PRE_EMP_LEVELS,
+};
+
+enum secdp_phy_voltage_type {
+	PHY_VOLTAGE_SWING0,	/* 0.4 v */
+	PHY_VOLTAGE_SWING1,	/* 0.6 v */
+	PHY_VOLTAGE_SWING2,	/* 0.8 v */
+	PHY_VOLTAGE_SWING3,	/* 1.2 v, optional */
+	MAX_VOLTAGE_LEVELS,
+};
+
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+enum secdp_ps5169_pre_emphasis_type {
+	PHY_PS5169_EMP0,	/* 0   db */
+	PHY_PS5169_EMP1,	/* 3.5 db */
+	PHY_PS5169_EMP2,	/* 6.0 db */
+	PHY_PS5169_EMP3,	/* 9.5 db */
+	MAX_PS5169_EMP_LEVELS,
+};
+
+enum secdp_PS5169_voltage_type {
+	PHY_PS5169_SWING0,	/* 0.4 v */
+	PHY_PS5169_SWING1,	/* 0.6 v */
+	PHY_PS5169_SWING2,	/* 0.8 v */
+	PHY_PS5169_SWING3,	/* 1.2 v, optional */
+	MAX_PS5169_SWING_LEVELS,
+};
+#endif/*CONFIG_COMBO_REDRIVER_PS5169*/
+#endif/*CONFIG_SECDP*/
+
 /**
  * struct dp_parser - DP parser's data exposed to clients
  *
@@ -246,6 +282,28 @@ struct dp_parser {
 	u8 *pre_emp_hbr_rbr;
 	bool valid_lt_params;
 
+#if defined(CONFIG_SECDP)
+	struct regulator *aux_pullup_vreg;
+	bool cc_dir_inv;  /* CC_DIR is inversed, e.g, T865 */
+	bool aux_sel_inv; /* inverse control of AUX_SEL e.g, D2Xq hwid 01,02 */
+	int  use_redrv;   /* ptn36502 needs NOT AUX switch SEL control */
+	int  dex_dft_res; /* DeX default resolution, e.g, HG950 */
+	bool prefer_support;  /* true if prefer resolution has high priority */
+	bool mrr_fps_nolimit; /* true if mirroring refresh rate has no limit */
+	bool mst_support;     /* true if MST is supported */
+
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+	u8 ps5169_rbr_eq0[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS];
+	u8 ps5169_rbr_eq1[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS];
+	u8 ps5169_hbr_eq0[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS];
+	u8 ps5169_hbr_eq1[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS];
+	u8 ps5169_hbr2_eq0[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS];
+	u8 ps5169_hbr2_eq1[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS];
+	u8 ps5169_hbr3_eq0[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS];
+	u8 ps5169_hbr3_eq1[MAX_PS5169_SWING_LEVELS][MAX_PS5169_EMP_LEVELS];
+#endif/*CONFIG_COMBO_REDRIVER_PS5169*/
+#endif/*CONFIG_SECDP*/
+
 	int (*parse)(struct dp_parser *parser);
 	struct dp_io_data *(*get_io)(struct dp_parser *parser, char *name);
 	void (*get_io_buf)(struct dp_parser *parser, char *name);
@@ -286,4 +344,104 @@ struct dp_parser *dp_parser_get(struct platform_device *pdev);
  * @parser: pointer to the parser's data.
  */
 void dp_parser_put(struct dp_parser *parser);
+
+#if defined(CONFIG_SECDP_DBG)
+enum secdp_link_rate_t {
+	DP_LR_NONE = 0x0,
+	DP_LR_HBR_RBR = 0x1,
+	DP_LR_HBR2_3 = 0x2,
+};
+
+static inline char *secdp_link_rate_to_string(int lr)
+{
+	switch (lr) {
+	case DP_LR_HBR_RBR:
+		return DP_ENUM_STR(DP_LR_HBR_RBR);
+	case DP_LR_HBR2_3:
+		return DP_ENUM_STR(DP_LR_HBR2_3);
+	default:
+		return "unknown";
+	}
+}
+
+enum secdp_phy_param_t {
+	DP_PARAM_NONE = 0x0,
+	DP_PARAM_VX = 0x1,	/* voltage swing */
+	DP_PARAM_PX = 0x2,	/* pre-emphasis */
+};
+
+static inline char *secdp_phy_type_to_string(int param)
+{
+	switch (param) {
+	case DP_PARAM_VX:
+		return DP_ENUM_STR(DP_PARAM_VX);
+	case DP_PARAM_PX:
+		return DP_ENUM_STR(DP_PARAM_PX);
+	default:
+		return "unknown";
+	}
+}
+
+/* voltage swing, pre-emphasis */
+int  secdp_parse_vxpx_show(struct dp_parser *parser, enum secdp_link_rate_t lr,
+				enum secdp_phy_param_t vxpx, char *buf);
+int  secdp_parse_vxpx_store(struct dp_parser *parser, enum secdp_link_rate_t lr,
+				enum secdp_phy_param_t vxpx, char *buf);
+int  secdp_show_phy_param(struct dp_parser *parser, char *buf);
+
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+enum secdp_ps5169_eq_t {
+	DP_PS5169_EQ0,
+	DP_PS5169_EQ1,
+	DP_PS5169_EQ_MAX,
+};
+
+static inline char *secdp_ps5169_eq_to_string(int hw)
+{
+	switch (hw) {
+	case DP_PS5169_EQ0:
+		return DP_ENUM_STR(DP_PS5169_EQ0);
+	case DP_PS5169_EQ1:
+		return DP_ENUM_STR(DP_PS5169_EQ1);
+	default:
+		return "unknown";
+	}
+}
+
+enum secdp_ps5169_link_rate_t {
+	DP_PS5169_RATE_RBR,
+	DP_PS5169_RATE_HBR,
+	DP_PS5169_RATE_HBR2,
+	DP_PS5169_RATE_HBR3,
+	DP_PS5169_RATE_MAX,
+};
+
+static inline char *secdp_ps5169_rate_to_string(int hw)
+{
+	switch (hw) {
+	case DP_PS5169_RATE_RBR:
+		return DP_ENUM_STR(DP_PS5169_RATE_RBR);
+	case DP_PS5169_RATE_HBR:
+		return DP_ENUM_STR(DP_PS5169_RATE_HBR);
+	case DP_PS5169_RATE_HBR2:
+		return DP_ENUM_STR(DP_PS5169_RATE_HBR2);
+	case DP_PS5169_RATE_HBR3:
+		return DP_ENUM_STR(DP_PS5169_RATE_HBR3);
+	default:
+		return "unknown";
+	}
+}
+
+int secdp_parse_ps5169_show(struct dp_parser *parser, enum secdp_ps5169_eq_t eq,
+			enum secdp_ps5169_link_rate_t link_rate, char *buf);
+int secdp_parse_ps5169_store(struct dp_parser *parser, enum secdp_ps5169_eq_t eq,
+			enum secdp_ps5169_link_rate_t link_rate, char *buf);
+int secdp_show_ps5169_param(struct dp_parser *parser, char *buf);
+#endif/*CONFIG_COMBO_REDRIVER_PS5169*/
+
+/* AUX configuration */
+int  secdp_aux_cfg_show(struct dp_parser *parser, char *buf);
+int  secdp_aux_cfg_store(struct dp_parser *parser, char *buf);
+#endif/*CONFIG_SECDP_DBG*/
+
 #endif

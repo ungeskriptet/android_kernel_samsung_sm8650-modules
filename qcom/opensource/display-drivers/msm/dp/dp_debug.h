@@ -45,6 +45,7 @@
 		DP_ERR_V(fmt, ##__VA_ARGS__); \
 	} while (0)
 
+#if !defined(CONFIG_SECDP)
 #define DP_DEBUG_V(fmt, ...) \
 	do { \
 		if (drm_debug_enabled(DRM_UT_KMS))                        \
@@ -80,6 +81,47 @@
 #define DP_ERR_RATELIMITED_V(fmt, ...)                                    \
 		pr_err_ratelimited("[drm:%s][msm-dp-err][%-4d]"fmt, __func__, \
 				current->pid, ##__VA_ARGS__)
+#else
+#define DP_DEBUG_V(fmt, ...) \
+	do { \
+		if (drm_debug_enabled(DRM_UT_KMS))                        \
+			DRM_DEBUG("[msm-dp-debug][%-4d]"fmt, current->pid,   \
+					##__VA_ARGS__);                      \
+		else                                                         \
+			pr_debug(fmt, ##__VA_ARGS__);                        \
+	} while (0)
+
+#define DP_INFO_V(fmt, ...)                                                    \
+	do {                                                                 \
+		if (drm_debug_enabled(DRM_UT_KMS))                        \
+			DRM_INFO("[msm-dp-info][%-4d]"fmt, current->pid,     \
+					##__VA_ARGS__);                      \
+		else                                                         \
+			pr_info(fmt, ##__VA_ARGS__);                         \
+	} while (0)
+
+#define DP_WARN_V(fmt, ...)		pr_warn(fmt, ##__VA_ARGS__)
+#define DP_WARN_RATELIMITED_V(fmt, ...)	pr_warn(fmt, ##__VA_ARGS__)
+#define DP_ERR_V(fmt, ...)		pr_err(fmt, ##__VA_ARGS__)
+#define DP_ERR_RATELIMITED_V(fmt, ...)  pr_err(fmt, ##__VA_ARGS__)
+#endif
+
+#if defined(CONFIG_SECDP_DBG)
+extern bool secdp_func_trace;
+#define DP_ENTER(fmt, ...) \
+	do {	\
+		if (secdp_func_trace)	\
+			pr_debug("+++ " pr_fmt(fmt), ##__VA_ARGS__);	\
+	} while (0)
+#define DP_LEAVE(fmt, ...) \
+	do {	\
+		if (secdp_func_trace)	\
+			pr_debug("--- " pr_fmt(fmt), ##__VA_ARGS__);	\
+	} while (0)
+#else
+#define DP_ENTER(fmt, ...) do {} while (0)
+#define DP_LEAVE(fmt, ...) do {} while (0)
+#endif
 
 #define DEFAULT_DISCONNECT_DELAY_MS 0
 #define MAX_DISCONNECT_DELAY_MS 10000

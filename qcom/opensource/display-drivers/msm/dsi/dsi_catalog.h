@@ -127,6 +127,14 @@ void dsi_phy_hw_v4_0_set_continuous_clk(struct dsi_phy_hw *phy, bool enable);
 void dsi_phy_hw_v4_0_commit_phy_timing(struct dsi_phy_hw *phy,
 		struct dsi_phy_per_lane_cfgs *timing);
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+void dsi_phy_hw_v5_0_store_str(struct dsi_phy_hw *phy, u32 *val);
+u32 dsi_phy_hw_v5_0_show_str(struct dsi_phy_hw *phy);
+void dsi_phy_hw_v5_0_store_vreg(struct dsi_phy_hw *phy, u32 *val);
+u32 dsi_phy_hw_v5_0_show_vreg(struct dsi_phy_hw *phy);
+void dsi_phy_hw_v5_0_store_emphasis(struct dsi_phy_hw *phy, u32 *val);
+#endif
+
 /* Definitions for 4nm PHY hardware driver */
 void dsi_phy_hw_v5_0_enable(struct dsi_phy_hw *phy, struct dsi_phy_cfg *cfg);
 void dsi_phy_hw_v5_0_disable(struct dsi_phy_hw *phy, struct dsi_phy_cfg *cfg);

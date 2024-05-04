@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2017, 2020 The Linux Foundation. All rights reserved.
  */
 
@@ -37,10 +36,8 @@ int sde_encoder_dce_setup(struct sde_encoder_virt *sde_enc,
  */
 void sde_encoder_dce_flush(struct sde_encoder_virt *sde_enc);
 
-/**
- * sde_encoder_has_dsc_hw_rev_2 :checks if dsc_hw_rev_1_2 feature is enabled
- * @sde_enc: pointer to virtual encoder structure
- */
-bool sde_encoder_has_dsc_hw_rev_2(struct sde_encoder_virt *sde_enc);
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+int sde_encoder_is_dsc_enabled(struct sde_encoder_virt *sde_enc);
+#endif
 
 #endif /* __SDE_ENCODER_DCE_H__ */

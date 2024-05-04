@@ -93,6 +93,9 @@ struct dp_panel_in {
 	struct drm_connector *connector;
 	struct dp_panel *base_panel;
 	struct dp_parser *parser;
+#if defined(CONFIG_SECDP)
+	struct secdp_misc *sec;
+#endif
 };
 
 struct dp_dsc_caps {
@@ -129,6 +132,13 @@ struct dp_panel {
 	u32 lane_count;
 	u32 link_bw_code;
 	u32 max_supported_bpp;
+
+#if defined(CONFIG_SECDP)
+	bool tbox;
+	u8 monitor_name[14];	/* max 13 chars + null */
+	u32 dsp_type;
+	struct dp_panel_info max_timing_info;
+#endif
 
 	/* By default, stream_id is assigned to DP_INVALID_STREAM.
 	 * Client sets the stream id value using set_stream_id interface.
@@ -264,4 +274,10 @@ struct dp_panel *dp_panel_get(struct dp_panel_in *in);
 void dp_panel_put(struct dp_panel *dp_panel);
 void dp_panel_calc_tu_test(struct dp_tu_calc_input *in,
 		struct dp_vc_tu_mapping_table *tu_table);
+
+#define SECDP_OPTIMAL_LINK_RATE	 /* use optimum link_rate, not max link_rate */
+#ifdef SECDP_OPTIMAL_LINK_RATE
+u32 secdp_gen_link_clk(struct dp_panel *dp_panel);
+#endif
+
 #endif /* _DP_PANEL_H_ */

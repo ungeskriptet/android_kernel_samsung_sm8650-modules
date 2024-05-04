@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
-KDIR := $(TOP)/kernel/samsung/sm8650
+KDIR := $(TOP)/kernel_platform/msm-kernel
 
 ifeq ($(CONFIG_ARCH_WAIPIO), y)
 ifeq ($(CONFIG_ARCH_QTI_VM), y)
@@ -20,16 +20,6 @@ endif
 ifeq ($(CONFIG_ARCH_PARROT), y)
 	include $(DISPLAY_ROOT)/config/gki_parrotdisp.conf
 	LINUX_INC +=	-include $(DISPLAY_ROOT)/config/gki_parrotdispconf.h
-endif
-
-ifeq ($(CONFIG_ARCH_PITTI), y)
-	include $(DISPLAY_ROOT)/config/gki_pittidisp.conf
-	LINUX_INC +=	-include $(DISPLAY_ROOT)/config/gki_pittidispconf.h
-endif
-
-ifeq ($(CONFIG_ARCH_NIOBE), y)
-	include $(DISPLAY_ROOT)/config/gki_niobedisp.conf
-	LINUX_INC +=	-include $(DISPLAY_ROOT)/config/gki_niobedispconf.h
 endif
 
 ifeq ($(CONFIG_ARCH_PINEAPPLE), y)
@@ -86,12 +76,16 @@ KBUILD_CPPFLAGS += $(CDEFINES)
 
 ccflags-y += $(LINUX_INC)
 
+# CONFIG_DISPLAY_SAMSUNG start
+ccflags-y += -I$(DISPLAY_ROOT)/msm/samsung
+# CONFIG_DISPLAY_SAMSUNG end
+
 ifeq ($(call cc-option-yn, -Wmaybe-uninitialized),y)
 EXTRA_CFLAGS += -Wmaybe-uninitialized
 endif
 
-KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/sm8650-modules/qcom/opensource/display-drivers/hdcp/Module.symvers
-KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/sm8650-modules/qcom/opensource/display-drivers/msm/Module.symvers
+KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/display-drivers/hdcp/Module.symvers
+KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/display-drivers/msm/Module.symvers
 
 ifeq ($(call cc-option-yn, -Wheader-guard),y)
 EXTRA_CFLAGS += -Wheader-guard
@@ -168,6 +162,13 @@ msm_drm-$(CONFIG_DRM_MSM_DP) += dp/dp_altmode.o \
 msm_drm-$(CONFIG_DRM_MSM_DP_MST) += dp/dp_mst_drm.o
 
 msm_drm-$(CONFIG_DRM_MSM_DP_USBPD_LEGACY) += dp/dp_usbpd.o
+
+# sec displayport
+msm_drm-$(CONFIG_SECDP) += dp/secdp_sysfs.o \
+                           dp/secdp_logger.o \
+                           dp/secdp_unit_test.o
+
+msm_drm-$(CONFIG_SECDP_BIGDATA) += dp/secdp_bigdata.o
 
 msm_drm-$(CONFIG_DRM_MSM_SDE) += sde/sde_crtc.o \
 				 sde/sde_encoder.o \
@@ -265,3 +266,72 @@ msm_drm-$(CONFIG_DRM_MSM) += msm_atomic.o \
 
 CDEFINES += -DBUILD_TIMESTAMP=\"$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')\"
 
+
+include $(DISPLAY_ROOT)/msm/samsung/E3_S6E3HAE_AMB681AZ01/E3_S6E3HAE_AMB681AZ01.conf
+ccflags-y +=	-include $(DISPLAY_ROOT)/msm/samsung/E3_S6E3HAE_AMB681AZ01/E3_S6E3HAE_AMB681AZ01.h
+
+XXD := /usr/bin/xxd
+SED := /bin/sed
+
+#Translate .dat file to .h to cover the case which can not use request_firmware(Recovery Mode)
+CLEAR_TMP := $(shell rm -f E3_S6E3HAE_AMB681AZ01_PDF_DATA)
+COPY_TO_HERE := $(shell cp -vf $(DISPLAY_ROOT)/msm/samsung/panel_data_file/E3_S6E3HAE_AMB681AZ01.dat E3_S6E3HAE_AMB681AZ01_PDF_DATA)
+DATA_TO_HEX := $(shell $(XXD) -i E3_S6E3HAE_AMB681AZ01_PDF_DATA > $(DISPLAY_ROOT)/msm/samsung/E3_S6E3HAE_AMB681AZ01/E3_S6E3HAE_AMB681AZ01_PDF.h)
+ADD_NULL_CHR := $(shell $(SED) -i -e 's/\([0-9a-f]\)$$/\0, 0x00/' $(DISPLAY_ROOT)/msm/samsung/E3_S6E3HAE_AMB681AZ01/E3_S6E3HAE_AMB681AZ01_PDF.h)
+
+msm_drm-$(CONFIG_PANEL_E3_S6E3HAE_AMB681AZ01_WQHD) += samsung/E3_S6E3HAE_AMB681AZ01/E3_S6E3HAE_AMB681AZ01_panel.o
+
+include $(DISPLAY_ROOT)/msm/samsung/panel_common.conf
+ccflags-y +=	-include $(DISPLAY_ROOT)/msm/samsung/panel_common_conf.h
+
+msm_drm-$(CONFIG_DISPLAY_SAMSUNG) += samsung/PBA_BOOTING/ss_dsi_panel_PBA_BOOTING_fhd.o
+include $(DISPLAY_ROOT)/msm/samsung/E3_S6E3HAF_AMB679FN01/E3_S6E3HAF_AMB679FN01.conf
+ccflags-y +=	-include $(DISPLAY_ROOT)/msm/samsung/E3_S6E3HAF_AMB679FN01/E3_S6E3HAF_AMB679FN01.h
+
+XXD := /usr/bin/xxd
+SED := /bin/sed
+
+#Translate .dat file to .h to cover the case which can not use request_firmware(Recovery Mode)
+CLEAR_TMP := $(shell rm -f E3_S6E3HAF_AMB679FN01_PDF_DATA)
+COPY_TO_HERE := $(shell cp -vf $(DISPLAY_ROOT)/msm/samsung/panel_data_file/E3_S6E3HAF_AMB679FN01.dat E3_S6E3HAF_AMB679FN01_PDF_DATA)
+DATA_TO_HEX := $(shell $(XXD) -i E3_S6E3HAF_AMB679FN01_PDF_DATA > $(DISPLAY_ROOT)/msm/samsung/E3_S6E3HAF_AMB679FN01/E3_S6E3HAF_AMB679FN01_PDF.h)
+ADD_NULL_CHR := $(shell $(SED) -i -e 's/\([0-9a-f]\)$$/\0, 0x00/' $(DISPLAY_ROOT)/msm/samsung/E3_S6E3HAF_AMB679FN01/E3_S6E3HAF_AMB679FN01_PDF.h)
+
+msm_drm-$(CONFIG_PANEL_E3_S6E3HAF_AMB679FN01_WQHD) += samsung/E3_S6E3HAF_AMB679FN01/E3_S6E3HAF_AMB679FN01_panel.o
+
+include $(DISPLAY_ROOT)/msm/samsung/panel_common.conf
+ccflags-y +=	-include $(DISPLAY_ROOT)/msm/samsung/panel_common_conf.h
+
+ifeq ($(TARGET_BUILD_VARIANT), eng)
+ccflags-y += -DCONFIG_OPCODE_PARSER=1
+endif
+
+msm_drm-$(CONFIG_DISPLAY_SAMSUNG) += samsung/ss_dsi_panel_sysfs.o \
+	samsung/ss_dsi_panel_debug.o \
+	samsung/ss_dsi_panel_common.o \
+	samsung/ss_dsi_mdnie_lite_common.o \
+	samsung/ss_dpui_common.o \
+	samsung/ss_copr_common.o \
+	samsung/ss_wrapper_common.o \
+	samsung/ss_panel_parse.o \
+	samsung/ss_panel_power.o
+
+ifeq ($(CONFIG_SEC_KUNIT), y)
+ifeq ($(CONFIG_UML), y)
+obj-y	+= samsung/kunit_test/ss_dsi_panel_common_test.o
+endif
+endif
+
+
+# LEGO
+subdir-ccflags-$(CONFIG_SEC_KUNIT) += \
+	-Wno-unused-variable \
+	-Wno-unused-function \
+	-Wno-missing-braces \
+	-Wno-format
+
+
+msm_drm-$(CONFIG_DISPLAY_SAMSUNG) += samsung/SELF_DISPLAY/self_display.o
+
+
+msm_drm-$(CONFIG_DISPLAY_SAMSUNG) += samsung/MAFPC/ss_dsi_mafpc.o

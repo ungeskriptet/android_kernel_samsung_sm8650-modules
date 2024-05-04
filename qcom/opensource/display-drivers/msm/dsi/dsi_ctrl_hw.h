@@ -985,6 +985,9 @@ struct dsi_ctrl_hw {
 	bool null_insertion_enabled;
 	bool widebus_support;
 	bool reset_trig_ctrl;
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	int display_index; /* primary display or secondary display */
+#endif
 };
 
 #endif /* _DSI_CTRL_HW_H_ */

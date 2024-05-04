@@ -43,7 +43,7 @@ struct dp_power {
 		struct drm_device *drm_dev);
 	void (*power_client_deinit)(struct dp_power *power);
 	int (*power_mmrm_init)(struct dp_power *power,
-                struct sde_power_handle *phandle, void *dp,
+		struct sde_power_handle *phandle, void *dp,
 		int (*dp_display_mmrm_callback)(struct mmrm_client_notifier_data *notifier_data));
 };
 
@@ -66,4 +66,20 @@ struct dp_power *dp_power_get(struct dp_parser *parser, struct dp_pll *pll);
  * @power: pointer to the power module's data
  */
 void dp_power_put(struct dp_power *power);
+
+#if defined(CONFIG_SECDP)
+enum dp_hpd_plug_orientation secdp_get_plug_orientation(struct dp_power *dp_power);
+
+int  secdp_power_request_gpios(struct dp_power *dp_power);
+void secdp_power_set_gpio(struct dp_power *dp_power, bool flip);
+void secdp_power_unset_gpio(struct dp_power *dp_power);
+
+#if defined(CONFIG_SECDP_FACTORY_DPSWITCH_TEST)
+void secdp_config_gpios_factory(struct dp_power *dp_power, int aux_sel, bool out_en);
+#endif
+
+void secdp_redriver_onoff(struct dp_power *dp_power, bool enable, int lane);
+void secdp_redriver_linkinfo(struct dp_power *dp_power, u32 rate, u8 v_level, u8 p_level);
+#endif/*CONFIG_SECDP*/
+
 #endif /* _DP_POWER_H_ */

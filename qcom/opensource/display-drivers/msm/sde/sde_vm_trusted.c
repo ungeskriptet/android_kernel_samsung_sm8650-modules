@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -291,7 +291,7 @@ static int _sde_vm_accept_mem(struct sde_vm *vm)
 		SDE_ERROR("failed to populate acl data, rc=%ld\n",
 			   PTR_ERR(acl_desc));
 		rc = PTR_ERR(acl_desc);
-		return rc;
+		goto done;
 	}
 
 	sgl_desc = gh_rm_mem_accept(sde_vm->base.io_mem_handle,
@@ -309,7 +309,7 @@ static int _sde_vm_accept_mem(struct sde_vm *vm)
 
 		/* ACCEPT didn't go through. So no need to call the RELEASE */
 		sde_vm->base.io_mem_handle = -1;
-		goto acl_done;
+		goto accept_fail;
 	}
 
 	rc = _sde_vm_validate_sgl(sde_vm->sgl_desc, sgl_desc);
@@ -317,15 +317,16 @@ static int _sde_vm_accept_mem(struct sde_vm *vm)
 		SDE_ERROR(
 			"failed in sgl validation for SDE_VM_MEM_LABEL label, rc = %d\n",
 			rc);
-		goto sgl_done;
+		goto accept_fail;
 	}
 
 	SDE_INFO("mem accept succeeded for SDE_VM_MEM_LABEL label\n");
 
-sgl_done:
-	kvfree(sgl_desc);
-acl_done:
+	return 0;
+
+accept_fail:
 	kfree(acl_desc);
+done:
 	return rc;
 }
 

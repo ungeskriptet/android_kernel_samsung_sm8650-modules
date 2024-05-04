@@ -102,7 +102,6 @@
 #define INTF_TEAR_LINE_COUNT            0x2B0
 #define INTF_TEAR_AUTOREFRESH_CONFIG    0x2B4
 #define INTF_TEAR_TEAR_DETECT_CTRL      0x2B8
-#define INTF_TEAR_AUTOREFRESH_STATUS    0x2C0
 #define INTF_TEAR_PROG_FETCH_START      0x2C4
 #define INTF_TEAR_DSI_DMA_SCHD_CTRL0    0x2C8
 #define INTF_TEAR_DSI_DMA_SCHD_CTRL1    0x2CC
@@ -830,17 +829,6 @@ static int sde_hw_intf_get_autorefresh_config(struct sde_hw_intf *intf,
 	return 0;
 }
 
-static u32 sde_hw_intf_get_autorefresh_status(struct sde_hw_intf *intf)
-{
-	struct sde_hw_blk_reg_map *c;
-	u32 val;
-
-	c = &intf->hw;
-	val = SDE_REG_READ(c, INTF_TEAR_AUTOREFRESH_STATUS);
-
-	return val;
-}
-
 static int sde_hw_intf_poll_timeout_wr_ptr(struct sde_hw_intf *intf,
 		u32 timeout_us)
 {
@@ -889,6 +877,39 @@ static int sde_hw_intf_enable_te(struct sde_hw_intf *intf, bool enable)
 
 	return 0;
 }
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+static u32 ss_hw_intf_get_start(struct sde_hw_intf *intf)
+{
+	struct sde_hw_blk_reg_map *c;
+
+	if (!intf)
+		return 0;
+
+	c = &intf->hw;
+	return SDE_REG_READ(c, INTF_TEAR_START_POS);
+}
+static void ss_hw_intf_update_start(struct sde_hw_intf *intf,
+		struct sde_hw_tear_check *te)
+{
+	struct sde_hw_blk_reg_map *c;
+	int cfg;
+
+	if (!intf || !te)
+		return;
+
+	c = &intf->hw;
+	cfg = SDE_REG_READ(c, INTF_TEAR_SYNC_THRESH);
+	cfg &= ~0xFFFF;
+	cfg |= te->sync_threshold_start;
+	SDE_REG_WRITE(c, INTF_TEAR_SYNC_THRESH, cfg);
+
+	SDE_REG_WRITE(c, INTF_TEAR_START_POS, te->start_pos);
+
+	//SDE_EVT32_PICK(te->start_pos, te->sync_threshold_start); TBR
+}
+#endif
+
 
 static void sde_hw_intf_update_te(struct sde_hw_intf *intf,
 		struct sde_hw_tear_check *te)
@@ -1104,13 +1125,15 @@ static void _setup_intf_ops(struct sde_hw_intf_ops *ops,
 	if (cap & BIT(SDE_INTF_TE)) {
 		ops->setup_tearcheck = sde_hw_intf_setup_te_config;
 		ops->enable_tearcheck = sde_hw_intf_enable_te;
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+		ops->get_start = ss_hw_intf_get_start;
+		ops->update_start = ss_hw_intf_update_start;
+#endif
 		ops->update_tearcheck = sde_hw_intf_update_te;
 		ops->connect_external_te = sde_hw_intf_connect_external_te;
 		ops->get_vsync_info = sde_hw_intf_get_vsync_info;
 		ops->setup_autorefresh = sde_hw_intf_setup_autorefresh_config;
 		ops->get_autorefresh = sde_hw_intf_get_autorefresh_config;
-		ops->get_autorefresh_status =
-			sde_hw_intf_get_autorefresh_status;
 		ops->poll_timeout_wr_ptr = sde_hw_intf_poll_timeout_wr_ptr;
 		ops->vsync_sel = sde_hw_intf_vsync_sel;
 		ops->check_and_reset_tearcheck = sde_hw_intf_v1_check_and_reset_tearcheck;

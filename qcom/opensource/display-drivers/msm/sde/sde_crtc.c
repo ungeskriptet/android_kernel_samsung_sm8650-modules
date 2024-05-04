@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -48,6 +48,9 @@
 #include "sde_trace.h"
 #include "msm_drv.h"
 #include "sde_vm.h"
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#include "ss_dsi_panel_debug.h"
+#endif
 
 #define SDE_PSTATES_MAX (SDE_STAGE_MAX * 4)
 #define SDE_MULTIRECT_PLANE_MAX (SDE_STAGE_MAX * 2)
@@ -1607,9 +1610,8 @@ static void _sde_crtc_program_lm_output_roi(struct drm_crtc *crtc)
 
 		lm_roi = &cstate->lm_roi[lm_idx];
 		hw_lm = sde_crtc->mixers[lm_idx].hw_lm;
-		right_mixer = lm_idx % MAX_MIXERS_PER_LAYOUT;
-		if (sde_crtc->mixers_swapped)
-			right_mixer = !right_mixer;
+		if (!sde_crtc->mixers_swapped)
+			right_mixer = lm_idx % MAX_MIXERS_PER_LAYOUT;
 
 		if (lm_roi->w != hw_lm->cfg.out_width ||
 				lm_roi->h != hw_lm->cfg.out_height ||
@@ -2670,31 +2672,6 @@ static void _sde_crtc_dest_scaler_setup(struct drm_crtc *crtc)
 	}
 }
 
-static void sde_crtc_disable_dest_scaler(struct drm_crtc *crtc)
-{
-	struct sde_crtc *sde_crtc;
-	struct sde_crtc_state *cstate;
-	struct sde_hw_mixer *hw_lm;
-	struct sde_hw_ctl *hw_ctl;
-	struct sde_hw_ds *hw_ds;
-	int lm_idx;
-
-	sde_crtc = to_sde_crtc(crtc);
-	cstate = to_sde_crtc_state(crtc->state);
-
-	for (lm_idx = 0; lm_idx < sde_crtc->num_mixers; lm_idx++) {
-		hw_lm  = sde_crtc->mixers[lm_idx].hw_lm;
-		hw_ctl = sde_crtc->mixers[lm_idx].hw_ctl;
-		hw_ds  = sde_crtc->mixers[lm_idx].hw_ds;
-		if (hw_ds && hw_ds->ops.disable_dest_scl)
-			hw_ds->ops.disable_dest_scl(hw_ds);
-
-		if (hw_lm && hw_ctl && hw_ctl->ops.update_bitmask_mixer)
-			hw_ctl->ops.update_bitmask_mixer(
-					hw_ctl, hw_lm->idx, 1);
-	}
-}
-
 static void _sde_crtc_put_frame_data_buffer(struct sde_frame_data_buffer *buf)
 {
 	if (!buf)
@@ -3356,6 +3333,13 @@ static void _sde_crtc_set_input_fence_timeout(struct sde_crtc_state *cstate)
 	cstate->input_fence_timeout_ns =
 		sde_crtc_get_property(cstate, CRTC_PROP_INPUT_FENCE_TIMEOUT);
 	cstate->input_fence_timeout_ns *= NSEC_PER_MSEC;
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	/* Increase fence timeout value to 20 sec (case 03381402 / P180412-02009) */
+	/* use 10s for avoiding DP timeout (P211102-01233)*/
+	// cstate->input_fence_timeout_ns *= 2;
+	SDE_DEBUG("input_fence_timeout_ns %llu\n", cstate->input_fence_timeout_ns);
+#endif
 }
 
 void _sde_crtc_clear_dim_layers_v1(struct drm_crtc_state *state)
@@ -4850,6 +4834,56 @@ int sde_crtc_reset_hw(struct drm_crtc *crtc, struct drm_crtc_state *old_state,
 	return !recovery_events ? 0 : -EAGAIN;
 }
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#include "dsi_drm.h"
+#include "dsi_panel.h"
+#include "ss_dsi_panel_common.h"
+
+/* To send video mode TDDI fps change mipi cmds by VFP changing  */
+void ss_dfps_control(struct drm_crtc *crtc)
+{
+	struct drm_device *dev = crtc->dev;
+	struct drm_encoder *encoder = NULL;
+	struct drm_bridge *r_bridge = NULL;
+	struct dsi_bridge *c_bridge = NULL;
+	struct dsi_display *display = NULL;
+	struct samsung_display_driver_data *vdd = NULL;
+	struct list_head *br_chain  = NULL;
+
+	list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
+		if (encoder->crtc != crtc)
+			continue;
+
+		br_chain = &encoder->bridge_chain;
+		if (encoder->encoder_type == DRM_MODE_ENCODER_DSI && !list_empty(br_chain)) {
+			r_bridge = list_first_entry_or_null(br_chain, struct drm_bridge, chain_node);
+			if (r_bridge) { /* drm_bridge->dsi_bridge */
+				c_bridge = container_of(r_bridge, struct dsi_bridge, base);
+				if (c_bridge && c_bridge->dsi_mode.dsi_mode_flags & DSI_MODE_FLAG_VRR) {
+					display = c_bridge->display;
+					if (display && display->panel &&
+						display->panel->dfps_caps.type 	== DSI_DFPS_IMMEDIATE_VFP) {
+						vdd = (struct samsung_display_driver_data *)display->panel->panel_private;
+
+						SDE_ATRACE_BEGIN("ss_dfps_control");
+						if (vdd && vdd->panel_func.samsung_dfps_panel_update)
+							vdd->panel_func.samsung_dfps_panel_update(vdd,
+										c_bridge->dsi_mode.timing.refresh_rate);
+						SDE_ATRACE_END("ss_dfps_control");
+
+					}
+					SDE_DEBUG("crtc%d fps : %d\n", crtc->base.id, c_bridge->dsi_mode.timing.refresh_rate);
+				}
+			}
+		}
+
+		r_bridge = NULL;
+		c_bridge = NULL;
+		display = NULL;
+	}
+}
+#endif
+
 void sde_crtc_commit_kickoff(struct drm_crtc *crtc,
 		struct drm_crtc_state *old_state)
 {
@@ -4958,6 +4992,10 @@ void sde_crtc_commit_kickoff(struct drm_crtc *crtc,
 	if (test_bit(HW_FENCE_OUT_FENCES_ENABLE, sde_crtc->hwfence_features_mask) && !is_vid)
 		sde_fence_update_hw_fences_txq(sde_crtc->output_fence, false, 0,
 			sde_kms->debugfs_hw_fence);
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	ss_dfps_control(crtc);
+#endif
 
 	list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
 		if (encoder->crtc != crtc)
@@ -5195,9 +5233,6 @@ void sde_crtc_reset_sw_state(struct drm_crtc *crtc)
 	set_bit(SDE_CRTC_DIRTY_DIM_LAYERS, &sde_crtc->revalidate_mask);
 	if (cstate->num_ds_enabled)
 		set_bit(SDE_CRTC_DIRTY_DEST_SCALER, cstate->dirty);
-
-	/* wipe out cached CRTC ROI so PU is seen as dirty next update */
-	memset(&cstate->cached_user_roi_list, 0, sizeof(cstate->cached_user_roi_list));
 }
 
 static void sde_crtc_post_ipc(struct drm_crtc *crtc)
@@ -5331,8 +5366,10 @@ static void _sde_crtc_reset(struct drm_crtc *crtc)
 	sde_crtc->mixers_swapped = false;
 
 	/* disable clk & bw control until clk & bw properties are set */
-	cstate->bw_control = false;
-	cstate->bw_split_vote = false;
+	if (!crtc->state->active) {
+		cstate->bw_control = false;
+		cstate->bw_split_vote = false;
+	}
 	cstate->hwfence_in_fences_set = false;
 
 	sde_crtc_static_img_control(crtc, CACHE_STATE_DISABLED, false);
@@ -5398,7 +5435,6 @@ static void sde_crtc_disable(struct drm_crtc *crtc)
 			crtc->state->enable, sde_crtc->cached_encoder_mask);
 	sde_crtc->enabled = false;
 	sde_crtc->cached_encoder_mask = 0;
-	cstate->cached_cwb_enc_mask = 0;
 
 	/* Try to disable uidle */
 	sde_core_perf_crtc_update_uidle(crtc, false);
@@ -6612,8 +6648,6 @@ static void sde_crtc_install_perf_properties(struct sde_crtc *sde_crtc,
 static void sde_crtc_setup_capabilities_blob(struct sde_kms_info *info,
 		struct sde_mdss_cfg *catalog)
 {
-	enum sde_ddr_type ddr_type;
-
 	sde_kms_info_reset(info);
 
 	sde_kms_info_add_keyint(info, "hw_version", catalog->hw_rev);
@@ -6639,21 +6673,10 @@ static void sde_crtc_setup_capabilities_blob(struct sde_kms_info *info,
 				catalog->mdp[0].ubwc_swizzle);
 	}
 
-	ddr_type = of_fdt_get_ddrtype();
-	switch (ddr_type) {
-	case LP_DDR4:
+	if (of_fdt_get_ddrtype() == LP_DDR4_TYPE)
 		sde_kms_info_add_keystr(info, "DDR version", "DDR4");
-		break;
-	case LP_DDR5:
+	else
 		sde_kms_info_add_keystr(info, "DDR version", "DDR5");
-		break;
-	case LP_DDR5X:
-		sde_kms_info_add_keystr(info, "DDR version", "DDR5X");
-		break;
-	default:
-		SDE_INFO("ddr type : 0x%x not in list\n", ddr_type);
-		break;
-	}
 
 	if (sde_is_custom_client()) {
 		/* No support for SMART_DMA_V1 yet */
@@ -8758,9 +8781,6 @@ static void sde_cp_crtc_apply_noise(struct drm_crtc *crtc,
 void sde_crtc_disable_cp_features(struct drm_crtc *crtc)
 {
 	sde_cp_disable_features(crtc);
-
-	if (!crtc->state->active)
-		sde_crtc_disable_dest_scaler(crtc);
 }
 
 void _sde_crtc_vm_release_notify(struct drm_crtc *crtc)

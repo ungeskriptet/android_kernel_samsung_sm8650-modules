@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -66,6 +66,9 @@
 
 #define CREATE_TRACE_POINTS
 #include "sde_trace.h"
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#include "ss_dsi_panel_debug.h"
+#endif
 
 /* defines for secure channel call */
 #define MEM_PROTECT_SD_CTRL_SWITCH 0x18
@@ -765,6 +768,14 @@ static int _sde_kms_release_shared_buffer(unsigned long mem_addr,
 
 	/* leave ramdump memory only if base address matches */
 	if (ramdump_base == mem_addr &&
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG) && IS_ENABLED(CONFIG_SEC_DEBUG)
+			/* case 1) upload mode: release splash memory except disp_rdump_memory
+			 *		   which is used for framebuffer in upload mode bootloader
+			 * case 2) None-upload mode: release whole splash memory
+			 *		   which is used for framebuffer in normal booitng mode bootloader
+			 */
+			sec_debug_is_enabled() &&
+#endif
 			ramdump_buffer_size <= splash_buffer_size) {
 		mem_addr +=  ramdump_buffer_size;
 		splash_buffer_size -= ramdump_buffer_size;
@@ -786,6 +797,10 @@ static int _sde_kms_release_shared_buffer(unsigned long mem_addr,
 	for (pfn_idx = pfn_start; pfn_idx < pfn_end; pfn_idx++)
 		free_reserved_page(pfn_to_page(pfn_idx));
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG) && IS_ENABLED(CONFIG_SEC_DEBUG)
+	SDE_INFO("release splash buffer: addr: %lx, size: %x, sec_debug: %d\n",
+			mem_addr, splash_buffer_size, sec_debug_is_enabled());
+#endif
 	return ret;
 
 }
@@ -1264,6 +1279,7 @@ static void sde_kms_prepare_commit(struct msm_kms *kms,
 	struct drm_crtc_state *cstate;
 	struct sde_vm_ops *vm_ops;
 	int i, rc;
+	bool power_on_commit = true;
 
 	if (!kms)
 		return;
@@ -1283,7 +1299,13 @@ static void sde_kms_prepare_commit(struct msm_kms *kms,
 	}
 
 	if (sde_kms->first_kickoff) {
-		sde_power_scale_reg_bus(&priv->phandle, VOTE_INDEX_HIGH, false);
+		/* find if it's power on commit as max regbus vote is not needed in power on*/
+		for_each_new_crtc_in_state(state, crtc, cstate, i) {
+			if (!crtc->state->active || !crtc->state->active_changed)
+				power_on_commit = false;
+		}
+		sde_power_scale_reg_bus(&priv->phandle,
+				power_on_commit ? VOTE_INDEX_LOW : VOTE_INDEX_HIGH, false);
 		sde_kms->first_kickoff = false;
 	}
 
@@ -1498,11 +1520,6 @@ int sde_kms_vm_trusted_post_commit(struct sde_kms *sde_kms,
 	vm_ops = sde_vm_get_ops(sde_kms);
 
 	crtc = sde_kms_vm_get_vm_crtc(state);
-
-	if (sde_kms->vm->lastclose_in_progress && !crtc) {
-		sde_dbg_set_hw_ownership_status(false);
-		goto relase_vm;
-	}
 	if (!crtc)
 		return 0;
 
@@ -1512,7 +1529,6 @@ int sde_kms_vm_trusted_post_commit(struct sde_kms *sde_kms,
 	if (vm_req != VM_REQ_RELEASE)
 		return 0;
 
-relase_vm:
 	sde_kms_vm_pre_release(sde_kms, state, false);
 	sde_kms_vm_set_sid(sde_kms, 0);
 
@@ -1729,13 +1745,8 @@ static void sde_kms_wait_for_commit_done(struct msm_kms *kms,
 		sde_crtc_complete_flip(crtc, NULL);
 	}
 
-	if (cwb_enc)
+	if (cwb_disabling && cwb_enc)
 		sde_encoder_virt_reset(cwb_enc);
-
-	if (drm_atomic_crtc_needs_modeset(crtc->state)) {
-		drm_for_each_encoder_mask(encoder, crtc->dev, crtc->state->encoder_mask)
-			sde_encoder_reset_kickoff_timeout_ms(encoder);
-	}
 
 	/* avoid system cache update to set rd-noalloc bit when NSE feature is enabled */
 	if (!test_bit(SDE_FEATURE_SYS_CACHE_NSE, sde_kms->catalog->features))
@@ -1864,9 +1875,15 @@ static void _sde_kms_release_displays(struct sde_kms *sde_kms)
 	sde_kms->wb_displays = NULL;
 	sde_kms->wb_display_count = 0;
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	sde_kms->dsi_display_count = 0;
+	kfree(sde_kms->dsi_displays);
+	sde_kms->dsi_displays = NULL;
+#else
 	kfree(sde_kms->dsi_displays);
 	sde_kms->dsi_displays = NULL;
 	sde_kms->dsi_display_count = 0;
+#endif
 }
 
 /**
@@ -2355,6 +2372,11 @@ void sde_kms_timeline_status(struct drm_device *dev)
 	mutex_unlock(&dev->mode_config.mutex);
 }
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+int sde_core_perf_sysfs_init(struct sde_kms *sde_kms);
+int sde_core_perf_sysfs_deinit(struct sde_kms *sde_kms);
+#endif
+
 static int sde_kms_postinit(struct msm_kms *kms)
 {
 	struct sde_kms *sde_kms = to_sde_kms(kms);
@@ -2396,6 +2418,12 @@ static int sde_kms_postinit(struct msm_kms *kms)
 	rc = _sde_debugfs_init(sde_kms);
 	if (rc)
 		SDE_ERROR("sde_debugfs init failed: %d\n", rc);
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	rc = sde_core_perf_sysfs_init(sde_kms);
+	if (rc)
+		SDE_ERROR("sde_core_sysfs init failed: %d\n", rc);
+#endif
 
 	drm_for_each_crtc(crtc, dev)
 		sde_crtc_post_init(dev, crtc);
@@ -2449,6 +2477,10 @@ static void _sde_kms_hw_destroy(struct sde_kms *sde_kms,
 	_sde_kms_release_displays(sde_kms);
 
 	_sde_kms_unmap_all_splash_regions(sde_kms);
+	
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	sde_core_perf_sysfs_deinit(sde_kms);
+#endif
 
 	if (sde_kms->catalog) {
 		for (i = 0; i < sde_kms->catalog->vbif_count; i++) {
@@ -2921,10 +2953,6 @@ static void sde_kms_lastclose(struct msm_kms *kms)
 
 	sde_kms = to_sde_kms(kms);
 	dev = sde_kms->dev;
-
-	if (sde_kms && sde_kms->vm)
-		sde_kms->vm->lastclose_in_progress = true;
-
 	drm_modeset_acquire_init(&ctx, 0);
 
 	state = drm_atomic_state_alloc(dev);
@@ -2959,9 +2987,6 @@ out_ctx:
 		SDE_ERROR("kms lastclose failed: %d\n", ret);
 
 	SDE_EVT32(ret, SDE_EVTLOG_FUNC_EXIT);
-
-	if (sde_kms && sde_kms->vm)
-		sde_kms->vm->lastclose_in_progress = false;
 	return;
 
 backoff:
@@ -3058,11 +3083,8 @@ static int _sde_kms_validate_vm_request(struct drm_atomic_state *state, struct s
 			return rc;
 		}
 
-		if (vm_ops->vm_resource_init) {
+		if (vm_ops->vm_resource_init)
 			rc = vm_ops->vm_resource_init(sde_kms, state);
-			if (rc && vm_ops->vm_release)
-				rc = vm_ops->vm_release(sde_kms);
-		}
 	}
 
 	return rc;

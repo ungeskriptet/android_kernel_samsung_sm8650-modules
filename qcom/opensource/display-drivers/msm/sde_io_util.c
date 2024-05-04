@@ -14,6 +14,10 @@
 #include <linux/sde_vm_event.h>
 #include "sde_dbg.h"
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#include "ss_dsi_panel_common.h"
+#endif
+
 #define MAX_I2C_CMDS  16
 void dss_reg_w(struct dss_io_data *io, u32 offset, u32 value, u32 debug)
 {
@@ -554,6 +558,10 @@ int msm_dss_get_clk(struct device *dev, struct dss_clk *clk_arry, int num_clk)
 				clk_arry[i].clk_name, rc);
 			goto error;
 		}
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+		ss_dct_update_clk_dss(clk_arry[i].clk);
+#endif
 	}
 
 	return rc;
@@ -773,6 +781,10 @@ int msm_dss_enable_clk(struct dss_clk *clk_arry, int num_clk, int enable)
 				msm_dss_enable_clk(clk_arry, i, false);
 				break;
 			}
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+			ss_dct_update_ref_for_dss(clk_arry[i].clk, enable);
+#endif
 		}
 	} else {
 		for (i = num_clk - 1; i >= 0; i--) {
@@ -786,6 +798,10 @@ int msm_dss_enable_clk(struct dss_clk *clk_arry, int num_clk, int enable)
 				DEV_ERR("%pS->%s: '%s' is not available\n",
 					__builtin_return_address(0), __func__,
 					clk_arry[i].clk_name);
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+			ss_dct_update_ref_for_dss(clk_arry[i].clk, enable);
+#endif
 		}
 	}
 

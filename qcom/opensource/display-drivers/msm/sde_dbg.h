@@ -63,7 +63,7 @@
 enum sde_dbg_evtlog_flag {
 	SDE_EVTLOG_CRITICAL = BIT(0),
 	SDE_EVTLOG_IRQ = BIT(1),
-	SDE_EVTLOG_VERBOSE = BIT(2),
+	SDE_EVTLOG_VERBOSE = -1,
 	SDE_EVTLOG_EXTERNAL = BIT(3),
 	SDE_EVTLOG_ALWAYS = -1
 };
@@ -87,7 +87,11 @@ enum sde_dbg_dump_context {
  * "adb shell echo 2 > /sys/kernel/debug/dri/0/debug/reg_dump" before
  * doing the test cases.
  */
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#define SDE_DBG_DEFAULT_DUMP_MODE	SDE_DBG_DUMP_IN_LOG_LIMITED
+#else
 #define SDE_DBG_DEFAULT_DUMP_MODE	SDE_DBG_DUMP_IN_MEM
+#endif
 
 /*
  * Define blocks for register write logging.
@@ -530,6 +534,12 @@ void sde_evtlog_set_filter(struct sde_dbg_evtlog *evtlog, char *filter);
  */
 int sde_evtlog_get_filter(struct sde_dbg_evtlog *evtlog, int index,
 		char *buf, size_t bufsz);
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+void ss_sde_dbg_debugfs_open(void);
+ssize_t ss_sde_evtlog_dump_read(struct file *file, char __user *buff,
+		size_t count, loff_t *ppos);
+#endif
 
 #ifndef CONFIG_DRM_SDE_RSC
 static inline void sde_rsc_debug_dump(u32 mux_sel)

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021-2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -14,7 +14,6 @@
 #define DEST_SCALER_OP_MODE     0x00
 #define DEST_SCALER_HW_VERSION  0x10
 #define DEST_SCALER_MERGE_CTRL  0x0C
-#define DEST_SCALER_QSEED3_OP_MODE  0x04
 
 #define DEST_SCALER_DUAL_PIPE   1
 #define DEST_SCALER_QUAD_PIPE   3
@@ -42,8 +41,6 @@ static void sde_hw_ds_setup_opmode_v1(struct sde_hw_ds *hw_ds, u32 op_mode)
 
 	if (op_mode & SDE_DS_OP_MODE_DUAL) {
 		op_mode = DEST_SCALER_DUAL_PIPE;
-		SDE_REG_WRITE(hw, DEST_SCALER_MERGE_CTRL + hw_ds->scl->base, op_mode);
-	} else if (!op_mode) {
 		SDE_REG_WRITE(hw, DEST_SCALER_MERGE_CTRL + hw_ds->scl->base, op_mode);
 	}
 }
@@ -79,23 +76,13 @@ static void sde_hw_ds_setup_scaler3(struct sde_hw_ds *hw_ds,
 			 sde_get_sde_format(DRM_FORMAT_XBGR2101010), de_lpf_en);
 }
 
-static void sde_hw_ds_disable_dest_scaler(struct sde_hw_ds *hw_ds)
-{
-	struct sde_hw_blk_reg_map *hw = &hw_ds->hw;
-
-	SDE_REG_WRITE(hw, hw_ds->scl->base + DEST_SCALER_MERGE_CTRL, 0x0);
-	SDE_REG_WRITE(hw, hw_ds->scl->base + DEST_SCALER_QSEED3_OP_MODE, 0x0);
-}
-
 static void _setup_ds_ops(struct sde_hw_ds_ops *ops, unsigned long features)
 {
 
-	if (test_bit(SDE_DS_MERGE_CTRL, &features)) {
+	if (test_bit(SDE_DS_MERGE_CTRL, &features))
 		ops->setup_opmode = sde_hw_ds_setup_opmode_v1;
-		ops->disable_dest_scl = sde_hw_ds_disable_dest_scaler;
-	} else {
+	else
 		ops->setup_opmode = sde_hw_ds_setup_opmode;
-	}
 
 	if (test_bit(SDE_SSPP_SCALER_QSEED3, &features) ||
 			test_bit(SDE_SSPP_SCALER_QSEED3LITE, &features))

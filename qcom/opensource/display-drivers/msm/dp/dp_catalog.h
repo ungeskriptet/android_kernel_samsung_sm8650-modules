@@ -292,6 +292,10 @@ struct dp_catalog {
 
 	struct dp_catalog_sub *sub;
 
+#if defined(CONFIG_SECDP)
+	struct dp_parser *parser;
+#endif
+
 	void (*set_exe_mode)(struct dp_catalog *dp_catalog, char *mode);
 	int (*get_reg_dump)(struct dp_catalog *dp_catalog,
 		char *mode, u8 **out_buf, u32 *out_buf_len);
@@ -373,4 +377,28 @@ struct dp_catalog_sub *dp_catalog_get_v200(struct device *dev,
 
 u32 dp_catalog_get_dp_core_version(struct dp_catalog *dp_catalog);
 u32 dp_catalog_get_dp_phy_version(struct dp_catalog *dp_catalog);
+
+#if defined(CONFIG_SECDP_DBG)
+enum secdp_hw_preshoot_t {
+	DP_HW_PRESHOOT_0,
+	DP_HW_PRESHOOT_1,
+	DP_HW_PRESHOOT_MAX,
+};
+
+static inline char *secdp_preshoot_to_string(int hw)
+{
+	switch (hw) {
+	case DP_HW_PRESHOOT_0:
+		return DP_ENUM_STR(DP_HW_PRESHOOT_0);
+	case DP_HW_PRESHOOT_1:
+		return DP_ENUM_STR(DP_HW_PRESHOOT_1);
+	default:
+		return "unknown";
+	}
+}
+
+int  secdp_catalog_preshoot_show(struct dp_catalog *catalog, char *buf);
+void secdp_catalog_preshoot_store(struct dp_catalog *catalog, char *buf);
+#endif/*CONFIG_SECDP_DBG*/
+
 #endif /* _DP_CATALOG_H_ */
