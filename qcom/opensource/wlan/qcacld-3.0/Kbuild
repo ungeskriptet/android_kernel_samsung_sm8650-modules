@@ -6,6 +6,9 @@ else
 	KERNEL_BUILD := n
 endif
 
+ccflags-y += -I$(srctree)/../sm8650-modules/qcom/opensource/dataipa/drivers/platform/msm/include
+ccflags-y += -I$(srctree)/../sm8650-modules/qcom/opensource/dataipa/drivers/platform/msm/include/uapi
+
 # Force user build
 TARGET_BUILD_VARIANT := user
 
