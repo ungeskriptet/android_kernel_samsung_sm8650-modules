@@ -3,8 +3,6 @@ ifneq ($(TARGET_BOARD_AUTO),true)
 ifneq ($(TARGET_BOARD_PLATFORM),qssi)
 
 RMNET_APS_DLKM_PLATFORMS_LIST := pineapple
-RMNET_APS_DLKM_PLATFORMS_LIST += pitti
-RMNET_APS_DLKM_PLATFORMS_LIST += volcano
 
 ifeq ($(call is-board-platform-in-list, $(RMNET_APS_DLKM_PLATFORMS_LIST)),true)
 LOCAL_PATH := $(call my-dir)
@@ -18,7 +16,7 @@ LOCAL_MODULE_PATH := $(KERNEL_MODULES_OUT)
 LOCAL_SRC_FILES := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
 
 DATARMNET_CORE_PATH := datarmnet/core
-RMNET_CORE_PATH := sm8650-modules/qcom/opensource/$(DATARMNET_CORE_PATH)
+RMNET_CORE_PATH := vendor/qcom/opensource/$(DATARMNET_CORE_PATH)
 DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 RMNET_CORE_INC_DIR := $(abspath $(RMNET_CORE_PATH))
 
