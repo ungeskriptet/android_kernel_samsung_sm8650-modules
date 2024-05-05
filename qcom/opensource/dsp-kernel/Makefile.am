@@ -1,4 +1,4 @@
-DSP_KERNEL_ROOT=$(ROOTDIR)vendor/qcom/opensource/dsp-kernel
+DSP_KERNEL_ROOT=$(ROOTDIR)sm8650-modules/qcom/opensource/dsp-kernel
 KBUILD_OPTIONS := DSP_KERNEL_ROOT=$(DSP_KERNEL_ROOT) CONFIG_MSM_ADSPRPC_TRUSTED=m
 
 ifeq ($(TARGET_SUPPORT),genericarmv8)

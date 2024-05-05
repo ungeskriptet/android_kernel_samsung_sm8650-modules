@@ -12,7 +12,7 @@ def _define_module(target, variant):
         defconfig = "defconfig",
         deps = [
             "//msm-kernel:all_headers",
-            "//vendor/qcom/opensource/mm-drivers:mm_drivers_headers",
+            "//sm8650-modules/qcom/opensource/mm-drivers:mm_drivers_headers",
         ],
         kernel_build = "//msm-kernel:{}".format(tv),
     )

@@ -16,7 +16,7 @@ DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 #LOCAL_MODULE_DDK_BUILD := true
 
 ifneq ($(PROJECT_NAME),)
-LOCAL_MODULE_DDK_EXTRA_ARGS := "--//vendor/qcom/opensource/camera-kernel:project_name=$(PROJECT_NAME)"
+LOCAL_MODULE_DDK_EXTRA_ARGS := "--//sm8650-modules/qcom/opensource/camera-kernel:project_name=$(PROJECT_NAME)"
 endif
 
 # List of board platforms for which MMRM driver API should be enabled

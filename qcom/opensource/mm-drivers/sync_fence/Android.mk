@@ -6,7 +6,7 @@ include $(CLEAR_VARS)
 ifneq ($(findstring vendor,$(LOCAL_PATH)),)
 
 ifneq ($(findstring opensource,$(LOCAL_PATH)),)
-	SYNC_FENCE_BLD_DIR := $(TOP)/vendor/qcom/opensource/mm-drivers/sync_fence
+	SYNC_FENCE_BLD_DIR := $(TOP)/sm8650-modules/qcom/opensource/mm-drivers/sync_fence
 endif # opensource
 
 DLKM_DIR := $(TOP)/device/qcom/common/dlkm

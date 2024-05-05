@@ -9,7 +9,7 @@ TARGET_VIDC_ENABLE := true
 endif
 
 ifeq ($(TARGET_VIDC_ENABLE),true)
-VIDEO_BLD_DIR := $(shell pwd)/vendor/qcom/opensource/video-driver
+VIDEO_BLD_DIR := $(shell pwd)/sm8650-modules/qcom/opensource/video-driver
 VIDEO_SELECT := CONFIG_MSM_VIDC_V4L2=m
 
 # Build msm_video.ko

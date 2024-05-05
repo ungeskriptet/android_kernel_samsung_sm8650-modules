@@ -205,7 +205,7 @@ def define_modules(target, variant):
             ":ipa_clients",
             "//msm-kernel:all_headers",
             ":{}_gsim".format(kernel_build_variant),
-            "//vendor/qcom/opensource/datarmnet-ext/mem:{}_rmnet_mem".format(kernel_build_variant),
+            "//sm8650-modules/qcom/opensource/datarmnet-ext/mem:{}_rmnet_mem".format(kernel_build_variant),
         ],
     )
     mod_list.append("{}_ipam".format(kernel_build_variant))

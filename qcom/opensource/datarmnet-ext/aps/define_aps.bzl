@@ -17,8 +17,8 @@ def define_aps(target, variant):
         kernel_build = "//msm-kernel:{}".format(kernel_build_variant),
         deps = [
             "//msm-kernel:all_headers",
-            "//vendor/qcom/opensource/datarmnet:{}_rmnet_core".format(kernel_build_variant),
-            "//vendor/qcom/opensource/datarmnet:rmnet_core_headers",
+            "//sm8650-modules/qcom/opensource/datarmnet:{}_rmnet_core".format(kernel_build_variant),
+            "//sm8650-modules/qcom/opensource/datarmnet:rmnet_core_headers",
         ],
         copts = ["-Wno-misleading-indentation"],
         includes = ["include"],

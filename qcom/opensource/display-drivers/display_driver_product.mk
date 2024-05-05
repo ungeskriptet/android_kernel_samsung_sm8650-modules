@@ -14,5 +14,5 @@ endif
 DISPLAY_MODULES_DRIVER := msm_drm.ko
 
 # ifdef CONFIG_DISPLAY_SAMSUNG
-PRODUCT_COPY_FILES += $(foreach f,$(wildcard vendor/qcom/opensource/display-drivers/msm/samsung/panel_data_file/*),$(f):/vendor/firmware/$(notdir $(f)))
+PRODUCT_COPY_FILES += $(foreach f,$(wildcard sm8650-modules/qcom/opensource/display-drivers/msm/samsung/panel_data_file/*),$(f):/vendor/firmware/$(notdir $(f)))
 # endif // CONFIG_DISPLAY_SAMSUNG

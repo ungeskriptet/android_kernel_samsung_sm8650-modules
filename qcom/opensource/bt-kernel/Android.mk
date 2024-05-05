@@ -28,7 +28,7 @@ LOCAL_MODULE_KO_DIRS += rtc6226/radio-i2c-rtc6226-qca.ko
 ifneq ($(findstring vendor,$(LOCAL_PATH)),)
 
 ifneq ($(findstring opensource,$(LOCAL_PATH)),)
-	BT_BLD_DIR := $(abspath .)/vendor/qcom/opensource/bt-kernel
+	BT_BLD_DIR := $(abspath .)/sm8650-modules/qcom/opensource/bt-kernel
 endif # opensource
 
 DLKM_DIR := $(TOP)/device/qcom/common/dlkm

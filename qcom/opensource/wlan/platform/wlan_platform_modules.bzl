@@ -80,7 +80,7 @@ def _define_modules_for_target_variant(target, variant):
             out = "cnss2.ko",
             kernel_build = "//msm-kernel:{}".format(tv),
             deps = [
-                "//vendor/qcom/opensource/securemsm-kernel:{}_smcinvoke_dlkm".format(tv),
+                "//sm8650-modules/qcom/opensource/securemsm-kernel:{}_smcinvoke_dlkm".format(tv),
                 ":{}_cnss_utils".format(tv),
                 ":{}_cnss_prealloc".format(tv),
                 ":{}_wlan_firmware_service".format(tv),

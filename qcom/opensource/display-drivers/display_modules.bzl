@@ -176,10 +176,10 @@ module_entry(
             },
       },
       deps = [
-         "//vendor/qcom/opensource/mm-drivers/hw_fence:%b_msm_hw_fence",
-         "//vendor/qcom/opensource/mm-drivers/sync_fence:%b_sync_fence",
-         "//vendor/qcom/opensource/mm-drivers/msm_ext_display:%b_msm_ext_display",
-         "//vendor/qcom/opensource/mmrm-driver:%b_mmrm_driver",
-         "//vendor/qcom/opensource/securemsm-kernel:%b_hdcp_qseecom_dlkm"
+         "//sm8650-modules/qcom/opensource/mm-drivers/hw_fence:%b_msm_hw_fence",
+         "//sm8650-modules/qcom/opensource/mm-drivers/sync_fence:%b_sync_fence",
+         "//sm8650-modules/qcom/opensource/mm-drivers/msm_ext_display:%b_msm_ext_display",
+         "//sm8650-modules/qcom/opensource/mmrm-driver:%b_mmrm_driver",
+         "//sm8650-modules/qcom/opensource/securemsm-kernel:%b_hdcp_qseecom_dlkm"
       ],
 )

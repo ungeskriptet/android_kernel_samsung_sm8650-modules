@@ -15,7 +15,7 @@ endif
 LOCAL_PATH := $(call my-dir)
 DLKM_DIR := $(TOP)/device/qcom/common/dlkm
 
-SEC_KERNEL_DIR := $(TOP)/vendor/qcom/opensource/securemsm-kernel
+SEC_KERNEL_DIR := $(TOP)/sm8650-modules/qcom/opensource/securemsm-kernel
 
 LOCAL_EXPORT_KO_INCLUDE_DIRS := $(LOCAL_PATH)/include/ \
                                 $(LOCAL_PATH)/include/uapi

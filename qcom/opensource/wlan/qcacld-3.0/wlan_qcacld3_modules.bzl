@@ -2237,14 +2237,14 @@ def _define_module_for_target_variant_chipset(target, variant, chipset):
         out = out,
         kernel_build = "//msm-kernel:{}".format(tv),
         deps = [
-            "//vendor/qcom/opensource/wlan/platform:{}_cnss2".format(tv),
-            "//vendor/qcom/opensource/wlan/platform:{}_cnss_prealloc".format(tv),
-            "//vendor/qcom/opensource/wlan/platform:{}_cnss_utils".format(tv),
-            "//vendor/qcom/opensource/wlan/platform:{}_cnss_nl".format(tv),
+            "//sm8650-modules/qcom/opensource/wlan/platform:{}_cnss2".format(tv),
+            "//sm8650-modules/qcom/opensource/wlan/platform:{}_cnss_prealloc".format(tv),
+            "//sm8650-modules/qcom/opensource/wlan/platform:{}_cnss_utils".format(tv),
+            "//sm8650-modules/qcom/opensource/wlan/platform:{}_cnss_nl".format(tv),
             "//msm-kernel:all_headers",
-            "//vendor/qcom/opensource/wlan/platform:wlan-platform-headers",
-            "//vendor/qcom/opensource/dataipa:include_headers",
-            "//vendor/qcom/opensource/dataipa:{}_{}_ipam".format(target, variant),
+            "//sm8650-modules/qcom/opensource/wlan/platform:wlan-platform-headers",
+            "//sm8650-modules/qcom/opensource/dataipa:include_headers",
+            "//sm8650-modules/qcom/opensource/dataipa:{}_{}_ipam".format(target, variant),
         ],
     )
 
