@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "ipa_i.h"
@@ -99,6 +99,7 @@ static int ipa3_hdr_proc_ctx_to_hw_format(struct ipa_mem_buffer *mem,
 
 		/* Check the pointer and header length to avoid dangerous overflow in HW */
 		if (unlikely(!entry->hdr || !entry->hdr->offset_entry ||
+			!entry->offset_entry ||
 			entry->hdr->hdr_len > ipa_hdr_bin_sz[IPA_HDR_BIN_MAX - 1])) {
 			IPAERR_RL("Found invalid hdr entry\n");
 			return -EINVAL;
@@ -112,6 +113,7 @@ static int ipa3_hdr_proc_ctx_to_hw_format(struct ipa_mem_buffer *mem,
 				&entry->l2tp_params,
 				&entry->eogre_params,
 				&entry->generic_params,
+				&entry->rtp_params,
 				ipa3_ctx->use_64_bit_dma_mask);
 		if (ret)
 			return ret;
@@ -469,6 +471,138 @@ static int __ipa_add_hdr_proc_ctx(struct ipa_hdr_proc_ctx_add *proc_ctx,
 	entry->l2tp_params = proc_ctx->l2tp_params;
 	entry->eogre_params = proc_ctx->eogre_params;
 	entry->generic_params = proc_ctx->generic_params;
+	if (add_ref_hdr)
+		hdr_entry->ref_cnt++;
+	entry->cookie = IPA_PROC_HDR_COOKIE;
+	entry->ipacm_installed = user_only;
+
+	needed_len = ipahal_get_proc_ctx_needed_len(proc_ctx->type);
+	if ((needed_len < 0) ||
+		((needed_len > ipa_hdr_proc_ctx_bin_sz[IPA_HDR_PROC_CTX_BIN0])
+			&&
+			(needed_len >
+			ipa_hdr_proc_ctx_bin_sz[IPA_HDR_PROC_CTX_BIN1]))) {
+		IPAERR_RL("unexpected needed len %d\n", needed_len);
+		WARN_ON_RATELIMIT_IPA(1);
+		goto bad_len;
+	}
+
+	if (needed_len <= ipa_hdr_proc_ctx_bin_sz[IPA_HDR_PROC_CTX_BIN0])
+		bin = IPA_HDR_PROC_CTX_BIN0;
+	else
+		bin = IPA_HDR_PROC_CTX_BIN1;
+
+	mem_size = (ipa3_ctx->hdr_proc_ctx_tbl_lcl) ?
+		IPA_MEM_PART(apps_hdr_proc_ctx_size) :
+		IPA_MEM_PART(apps_hdr_proc_ctx_size_ddr);
+	if (list_empty(&htbl->head_free_offset_list[bin])) {
+		if (htbl->end + ipa_hdr_proc_ctx_bin_sz[bin] > mem_size) {
+			IPAERR_RL("hdr proc ctx table overflow\n");
+			goto bad_len;
+		}
+
+		offset = kmem_cache_zalloc(ipa3_ctx->hdr_proc_ctx_offset_cache,
+					   GFP_KERNEL);
+		if (!offset) {
+			IPAERR("failed to alloc offset object\n");
+			goto bad_len;
+		}
+		INIT_LIST_HEAD(&offset->link);
+		/*
+		 * for a first item grow, set the bin and offset which are set
+		 * in stone
+		 */
+		offset->offset = htbl->end;
+		offset->bin = bin;
+		offset->ipacm_installed = user_only;
+		htbl->end += ipa_hdr_proc_ctx_bin_sz[bin];
+		list_add(&offset->link,
+				&htbl->head_offset_list[bin]);
+	} else {
+		/* get the first free slot */
+		offset =
+		    list_first_entry(&htbl->head_free_offset_list[bin],
+				struct ipa3_hdr_proc_ctx_offset_entry, link);
+		offset->ipacm_installed = user_only;
+		list_move(&offset->link, &htbl->head_offset_list[bin]);
+	}
+
+	entry->offset_entry = offset;
+	list_add(&entry->link, &htbl->head_proc_ctx_entry_list);
+	htbl->proc_ctx_cnt++;
+	IPADBG("add proc ctx of sz=%d cnt=%d ofst=%d\n", needed_len,
+			htbl->proc_ctx_cnt, offset->offset);
+
+	id = ipa3_id_alloc(entry);
+	if (id < 0) {
+		IPAERR_RL("failed to alloc id\n");
+		WARN_ON_RATELIMIT_IPA(1);
+		goto ipa_insert_failed;
+	}
+	entry->id = id;
+	proc_ctx->proc_ctx_hdl = id;
+	entry->ref_cnt++;
+
+	return 0;
+
+ipa_insert_failed:
+	list_move(&offset->link,
+		&htbl->head_free_offset_list[offset->bin]);
+	entry->offset_entry = NULL;
+	list_del(&entry->link);
+	htbl->proc_ctx_cnt--;
+
+bad_len:
+	if (add_ref_hdr)
+		hdr_entry->ref_cnt--;
+	entry->cookie = 0;
+	kmem_cache_free(ipa3_ctx->hdr_proc_ctx_cache, entry);
+	return -EPERM;
+}
+
+static int __ipa_add_rtp_hdr_proc_ctx(struct ipa_hdr_proc_ctx_add *proc_ctx,
+	struct ipa_rtp_hdr_proc_ctx_params rtp_params, bool add_ref_hdr, bool user_only)
+{
+	struct ipa3_hdr_entry *hdr_entry;
+	struct ipa3_hdr_proc_ctx_entry *entry;
+	struct ipa3_hdr_proc_ctx_offset_entry *offset;
+	u32 bin;
+	struct ipa3_hdr_proc_ctx_tbl *htbl = &ipa3_ctx->hdr_proc_ctx_tbl;
+	int id;
+	int needed_len;
+	int mem_size;
+
+	IPADBG_LOW("Add processing type %d hdr_hdl %d\n",
+		proc_ctx->type, proc_ctx->hdr_hdl);
+
+	if (!HDR_PROC_TYPE_IS_VALID(proc_ctx->type)) {
+		IPAERR_RL("invalid processing type %d\n", proc_ctx->type);
+		return -EINVAL;
+	}
+
+	hdr_entry = ipa3_id_find(proc_ctx->hdr_hdl);
+	if (!hdr_entry) {
+		IPAERR_RL("hdr_hdl is invalid\n");
+		return -EINVAL;
+	}
+	if (hdr_entry->cookie != IPA_HDR_COOKIE) {
+		IPAERR_RL("Invalid header cookie %u\n", hdr_entry->cookie);
+		WARN_ON_RATELIMIT_IPA(1);
+		return -EINVAL;
+	}
+	IPADBG("Associated header is name=%s\n", hdr_entry->name);
+
+	entry = kmem_cache_zalloc(ipa3_ctx->hdr_proc_ctx_cache, GFP_KERNEL);
+	if (!entry) {
+		IPAERR("failed to alloc proc_ctx object\n");
+		return -ENOMEM;
+	}
+
+	INIT_LIST_HEAD(&entry->link);
+
+	entry->type = proc_ctx->type;
+	entry->hdr = hdr_entry;
+	entry->rtp_params = rtp_params;
 	if (add_ref_hdr)
 		hdr_entry->ref_cnt++;
 	entry->cookie = IPA_PROC_HDR_COOKIE;
@@ -1155,6 +1289,54 @@ int ipa3_add_hdr_proc_ctx(struct ipa_ioc_add_hdr_proc_ctx *proc_ctxs,
 	for (i = 0; i < proc_ctxs->num_proc_ctxs; i++) {
 		if (__ipa_add_hdr_proc_ctx(&proc_ctxs->proc_ctx[i],
 				true, user_only)) {
+			IPAERR_RL("failed to add hdr proc ctx %d\n", i);
+			proc_ctxs->proc_ctx[i].status = -1;
+		} else {
+			proc_ctxs->proc_ctx[i].status = 0;
+		}
+	}
+
+	if (proc_ctxs->commit) {
+		IPADBG("committing all headers to IPA core");
+		if (ipa3_ctx->ctrl->ipa3_commit_hdr()) {
+			result = -EPERM;
+			goto bail;
+		}
+	}
+	result = 0;
+bail:
+	mutex_unlock(&ipa3_ctx->lock);
+	return result;
+}
+
+/**
+ * ipa3_add_rtp_hdr_proc_ctx() - add the specified headers to SW
+ * and optionally commit them to IPA HW
+ * @proc_ctxs:	[inout] set of processing context headers to add
+ * @rtp_params: [in] set of rtp_params to be configured
+ * @user_only:	[in] indicate installed by user-space module
+ *
+ * Returns:	0 on success, negative on failure
+ *
+ * Note:	Should not be called from atomic context
+ */
+int ipa3_add_rtp_hdr_proc_ctx(struct ipa_ioc_add_hdr_proc_ctx *proc_ctxs,
+	struct ipa_rtp_hdr_proc_ctx_params rtp_params, bool user_only)
+{
+	int i;
+	int result = -EFAULT;
+
+	if (proc_ctxs == NULL || proc_ctxs->num_proc_ctxs == 0) {
+		IPAERR_RL("bad parm\n");
+		return -EINVAL;
+	}
+
+	mutex_lock(&ipa3_ctx->lock);
+	IPADBG("adding %d rtp header processing contexts to IPA driver\n",
+			proc_ctxs->num_proc_ctxs);
+	for (i = 0; i < proc_ctxs->num_proc_ctxs; i++) {
+		if (__ipa_add_rtp_hdr_proc_ctx(&proc_ctxs->proc_ctx[i],
+				rtp_params, true, user_only)) {
 			IPAERR_RL("failed to add hdr proc ctx %d\n", i);
 			proc_ctxs->proc_ctx[i].status = -1;
 		} else {

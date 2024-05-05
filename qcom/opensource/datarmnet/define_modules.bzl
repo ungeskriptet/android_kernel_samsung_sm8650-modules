@@ -28,6 +28,21 @@ def define_modules(target, variant):
                     "core/rmnet_ctl_client.c",
                 ],
             },
+            "CONFIG_ARCH_MONACO": {
+                True: [
+                    "core/rmnet_ctl_client.c",
+                ],
+            },
+            "CONFIG_ARCH_PITTI": {
+                True: [
+                    "core/rmnet_ctl_client.c",
+                ],
+            },
+            "CONFIG_ARCH_VOLCANO": {
+                True: [
+                    "core/rmnet_ctl_client.c",
+                ],
+            },
         },
         kernel_build = "//msm-kernel:{}".format(kernel_build_variant),
         deps = [

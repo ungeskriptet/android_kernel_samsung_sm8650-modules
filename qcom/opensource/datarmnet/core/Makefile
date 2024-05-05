@@ -1,3 +1,5 @@
+ccflags-y += -I$(srctree)/../sm8650-modules/qcom/opensource/dataipa/drivers/platform/msm/include
+ccflags-y += -I$(srctree)/../sm8650-modules/qcom/opensource/dataipa/drivers/platform/msm/include/uapi
 ifeq ($(RELEASE_PACKAGE),1)
 EXTRA_CFLAGS+=-DRELEASE_PACKAGE
 endif

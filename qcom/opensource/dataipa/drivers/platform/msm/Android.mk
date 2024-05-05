@@ -1,7 +1,7 @@
 ifeq ($(TARGET_DATAIPA_DLKM_ENABLE), true)
 ifneq ($(TARGET_BOARD_PLATFORM),qssi)
 
-GSI_DLKM_PLATFORMS_LIST := taro kalama bengal monaco pineapple blair holi
+GSI_DLKM_PLATFORMS_LIST := taro kalama bengal monaco pineapple blair holi cliffs pitti volcano niobe
 
 #Enabling BAZEL
 LOCAL_MODULE_DDK_BUILD := true
@@ -15,7 +15,8 @@ endif
 ifeq ($(call is-board-platform-in-list, $(GSI_DLKM_PLATFORMS_LIST)),true)
 #Make file to create GSI DLKM
 
-DLKM_DIR := $(TOP)/device/qcom/common/dlkm
+BOARD_COMMON_DIR ?= device/qcom/common
+DLKM_DIR := $(TOP)/$(BOARD_COMMON_DIR)/dlkm
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 

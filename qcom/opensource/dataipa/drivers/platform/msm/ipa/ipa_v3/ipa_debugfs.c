@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  *
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifdef CONFIG_DEBUG_FS
@@ -131,6 +131,10 @@ const char *ipa3_hdr_proc_type_name[] = {
 	__stringify(IPA_HDR_PROC_SET_DSCP),
 	__stringify(IPA_HDR_PROC_EoGRE_HEADER_ADD),
 	__stringify(IPA_HDR_PROC_EoGRE_HEADER_REMOVE),
+	__stringify(IPA_HDR_PROC_RTP_METADATA_STREAM0),
+	__stringify(IPA_HDR_PROC_RTP_METADATA_STREAM1),
+	__stringify(IPA_HDR_PROC_RTP_METADATA_STREAM2),
+	__stringify(IPA_HDR_PROC_RTP_METADATA_STREAM3),
 };
 
 static struct dentry *dent;

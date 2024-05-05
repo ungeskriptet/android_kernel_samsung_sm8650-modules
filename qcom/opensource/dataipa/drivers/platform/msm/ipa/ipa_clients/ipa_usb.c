@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2020, The Linux Foundation. All rights reserved.
+ *
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/mutex.h>
@@ -2772,6 +2774,9 @@ void ipa3_usb_exit(void)
 	 */
 	ipa3_deregister_client_callback(IPA_CLIENT_USB_PROD);
 
+#if IS_ENABLED(CONFIG_DEEPSLEEP)
+	ipa_exit_callback();
+#endif
 	ipa_usb_debugfs_remove();
 	kfree(ipa3_usb_ctx);
 }

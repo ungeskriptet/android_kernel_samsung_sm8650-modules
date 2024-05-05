@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _IPAHAL_I_H_
@@ -1126,6 +1127,10 @@ union ipa_pkt_status_hw_v5_5 {
 /* Headers and processing context H/W structures and definitions */
 
 /* uCP command numbers */
+#define IPA_HDR_UCP_RTP_METADATA_STREAM0    0
+#define IPA_HDR_UCP_RTP_METADATA_STREAM1    1
+#define IPA_HDR_UCP_RTP_METADATA_STREAM2    2
+#define IPA_HDR_UCP_RTP_METADATA_STREAM3    3
 #define IPA_HDR_UCP_802_3_TO_802_3          6
 #define IPA_HDR_UCP_802_3_TO_ETHII          7
 #define IPA_HDR_UCP_ETHII_TO_802_3          8
@@ -1177,6 +1182,11 @@ struct ipa_hw_hdr_proc_ctx_hdr_add {
 	struct ipa_hw_hdr_proc_ctx_tlv tlv;
 	u32 hdr_addr;
 	u32 hdr_addr_hi;
+};
+
+struct ipa_hw_hdr_proc_ctx_rtp_add_hdr {
+	struct ipa_hw_hdr_proc_ctx_tlv tlv;
+	struct ipa_rtp_header_add_procparams rtp_params;
 };
 
 /**
@@ -1331,6 +1341,19 @@ struct ipa_hw_hdr_proc_ctx_add_eogre_hdr_cmd_seq {
 struct ipa_hw_hdr_proc_ctx_remove_eogre_hdr_cmd_seq {
 	struct ipa_hw_hdr_proc_ctx_hdr_add hdr_add;
 	struct ipa_hw_hdr_proc_ctx_eogre_remove_hdr eogre_params;
+	struct ipa_hw_hdr_proc_ctx_tlv end;
+};
+
+/**
+ * struct ipa_hw_hdr_proc_ctx_rtp_hdr_cmd_seq -
+ * IPA processing context header - process command sequence
+ * @hdr_add: add header command
+ * @rtp_params: rtp params for header addition
+ * @end: tlv end command (cmd.type must be 0)
+ */
+struct ipa_hw_hdr_proc_ctx_rtp_hdr_cmd_seq {
+	struct ipa_hw_hdr_proc_ctx_hdr_add hdr_add;
+	struct ipa_hw_hdr_proc_ctx_rtp_add_hdr rtp_params;
 	struct ipa_hw_hdr_proc_ctx_tlv end;
 };
 
