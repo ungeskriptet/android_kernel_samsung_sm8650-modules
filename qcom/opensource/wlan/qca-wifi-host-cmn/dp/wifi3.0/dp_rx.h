@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -131,12 +131,15 @@ struct dp_rx_desc_dbg_info {
  * @magic:
  * @nbuf_data_addr:	VA of nbuf data posted
  * @dbg_info:
+ * @prev_paddr_buf_start: paddr of the prev nbuf attach to rx_desc
  * @in_use:		rx_desc is in use
  * @unmapped:		used to mark rx_desc an unmapped if the corresponding
  *			nbuf is already unmapped
  * @in_err_state:	Nbuf sanity failed for this descriptor.
  * @has_reuse_nbuf:	the nbuf associated with this desc is also saved in
  *			reuse_nbuf field
+ * @msdu_done_fail:	this particular rx_desc was dequeued from REO with
+ *			msdu_done bit not set in data buffer.
  */
 struct dp_rx_desc {
 	qdf_nbuf_t nbuf;
@@ -152,11 +155,13 @@ struct dp_rx_desc {
 	uint32_t magic;
 	uint8_t *nbuf_data_addr;
 	struct dp_rx_desc_dbg_info *dbg_info;
+	qdf_dma_addr_t prev_paddr_buf_start;
 #endif
 	uint8_t	in_use:1,
 		unmapped:1,
 		in_err_state:1,
-		has_reuse_nbuf:1;
+		has_reuse_nbuf:1,
+		msdu_done_fail:1;
 };
 
 #ifndef QCA_HOST_MODE_WIFI_DISABLED
@@ -262,7 +267,11 @@ bool dp_rx_is_special_frame(qdf_nbuf_t nbuf, uint32_t frame_mask)
 	    ((frame_mask & FRAME_MASK_IPV4_EAPOL) &&
 	     qdf_nbuf_is_ipv4_eapol_pkt(nbuf)) ||
 	    ((frame_mask & FRAME_MASK_IPV6_DHCP) &&
-	     qdf_nbuf_is_ipv6_dhcp_pkt(nbuf)))
+	     qdf_nbuf_is_ipv6_dhcp_pkt(nbuf)) ||
+	    ((frame_mask & FRAME_MASK_DNS_QUERY) &&
+	     qdf_nbuf_data_is_dns_query(nbuf)) ||
+	    ((frame_mask & FRAME_MASK_DNS_RESP) &&
+	     qdf_nbuf_data_is_dns_response(nbuf)))
 		return true;
 
 	return false;
@@ -1950,6 +1959,7 @@ void dp_rx_desc_prep(struct dp_rx_desc *rx_desc,
 	rx_desc->unmapped = 0;
 	rx_desc->nbuf_data_addr = (uint8_t *)qdf_nbuf_data(rx_desc->nbuf);
 	dp_rx_set_reuse_nbuf(rx_desc, rx_desc->nbuf);
+	rx_desc->prev_paddr_buf_start = rx_desc->paddr_buf_start;
 	rx_desc->paddr_buf_start = nbuf_frag_info_t->paddr;
 }
 
@@ -2899,10 +2909,10 @@ end:
 
 static inline QDF_STATUS
 dp_peer_rx_reorder_queue_setup(struct dp_soc *soc, struct dp_peer *peer,
-			       int tid, uint32_t ba_window_size)
+			       uint32_t tid_bitmap, uint32_t ba_window_size)
 {
 	return soc->arch_ops.dp_peer_rx_reorder_queue_setup(soc,
-							    peer, tid,
+							    peer, tid_bitmap,
 							    ba_window_size);
 }
 

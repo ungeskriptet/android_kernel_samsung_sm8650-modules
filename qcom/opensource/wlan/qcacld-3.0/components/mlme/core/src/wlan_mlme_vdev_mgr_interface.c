@@ -46,6 +46,9 @@
 #endif
 #include <wlan_lmac_if_def.h>
 #include "target_if_mlme.h"
+#include "wlan_mlo_mgr_sta.h"
+#include "wlan_cp_stats_mc_tgt_api.h"
+#include "wlan_objmgr_pdev_obj.h"
 
 static struct vdev_mlme_ops sta_mlme_ops;
 static struct vdev_mlme_ops ap_mlme_ops;
@@ -867,6 +870,8 @@ QDF_STATUS mlme_set_chan_switch_in_progress(struct wlan_objmgr_vdev *vdev,
 	}
 
 	mlme_priv->chan_switch_in_progress = val;
+	mlo_set_chan_switch_in_progress(vdev, val);
+
 	mlme_legacy_info("Set chan_switch_in_progress: %d vdev %d",
 			 val, wlan_vdev_get_id(vdev));
 
@@ -1819,6 +1824,31 @@ static QDF_STATUS mon_mlme_vdev_disconnect_peers(
 		uint16_t data_len, void *data,
 		bool is_disconnect_legacy_only)
 {
+	struct wlan_objmgr_psoc *psoc = NULL;
+	struct wlan_objmgr_pdev *pdev = NULL;
+	uint32_t pdev_id;
+
+	psoc = wlan_vdev_get_psoc(vdev_mlme->vdev);
+	if (!psoc) {
+		mlme_legacy_debug("Invalid psoc");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	pdev = wlan_vdev_get_pdev(vdev_mlme->vdev);
+	if (!pdev) {
+		mlme_legacy_debug("Invalid pdev");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	pdev_id = wlan_objmgr_pdev_get_pdev_id(pdev);
+	if (pdev_id == WLAN_INVALID_PDEV_ID) {
+		mlme_legacy_debug("Invalid pdev id");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	/* Cancel periodic pdev stats update */
+	tgt_set_pdev_stats_update_period(psoc, pdev_id, 0);
+
 	mlme_legacy_debug("vdev id = %d",
 			  vdev_mlme->vdev->vdev_objmgr.vdev_id);
 	return wlan_vdev_mlme_sm_deliver_evt(
@@ -2120,6 +2150,20 @@ vdevmgr_vdev_reconfig_notify(struct vdev_mlme_obj *vdev_mlme,
 	return QDF_STATUS_SUCCESS;
 }
 
+static QDF_STATUS
+vdevmgr_vdev_reconfig_notify_standby(struct vdev_mlme_obj *vdev_mlme,
+				     struct ml_rv_info *reconfig_info)
+{
+	struct wlan_objmgr_vdev *vdev = vdev_mlme->vdev;
+
+	if (!vdev) {
+		mlme_err("invalid vdev");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	return policy_mgr_handle_link_removal_on_standby(vdev, reconfig_info);
+}
+
 static void
 vdevmgr_vdev_reconfig_timer_complete(struct vdev_mlme_obj *vdev_mlme)
 {
@@ -2288,6 +2332,24 @@ wlan_ll_sap_sort_channel_list(uint8_t vdev_id, qdf_list_t *list,
 {
 	return wlansap_sort_channel_list(vdev_id, list, ch_info);
 }
+
+void wlan_ll_sap_free_chan_info(struct sap_sel_ch_info *ch_param)
+{
+	return wlansap_free_chan_info(ch_param);
+}
+
+bool wlan_ll_sap_freq_present_in_pcl(struct policy_mgr_pcl_list *pcl,
+				     qdf_freq_t freq)
+{
+	uint8_t i;
+
+	for (i = 0; i < pcl->pcl_len; i++) {
+		if (pcl->pcl_list[i] == freq)
+			return true;
+	}
+
+	return false;
+}
 #endif
 
 void
@@ -2321,6 +2383,9 @@ static struct vdev_mlme_ops sta_mlme_ops = {
 			vdevmgr_vdev_reconfig_notify,
 	.mlme_vdev_reconfig_timer_complete =
 			vdevmgr_vdev_reconfig_timer_complete,
+	.mlme_vdev_reconfig_notify_standby =
+			vdevmgr_vdev_reconfig_notify_standby,
+
 #endif
 };
 

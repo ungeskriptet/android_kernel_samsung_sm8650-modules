@@ -4605,6 +4605,17 @@ ucfg_mlme_get_current_tx_power_level(struct wlan_objmgr_psoc *psoc,
 				     uint8_t *value);
 
 /**
+ * ucfg_wlan_mlme_get_reg_tpc_info() - get current regulatory tpc info
+ * @vdev:   pointer to vdev object
+ * @tpc_info:  pointer to tpc info buffer
+ *
+ * Return: QDF Status
+ */
+QDF_STATUS
+ucfg_wlan_mlme_get_reg_tpc_info(struct wlan_objmgr_vdev *vdev,
+				struct reg_tpc_power_info *tpc_info);
+
+/**
  * ucfg_mlme_set_obss_detection_offload_enabled() - Enable obss offload
  * @psoc:   pointer to psoc object
  * @value:  enable or disable
@@ -4682,6 +4693,18 @@ QDF_STATUS ucfg_mlme_set_restricted_80p80_bw_supp(struct wlan_objmgr_psoc *psoc,
 bool ucfg_mlme_get_restricted_80p80_bw_supp(struct wlan_objmgr_psoc *psoc);
 
 /**
+ * ucfg_mlme_get_update_chan_width_allowed  - Get value of INI
+ * is_update_chan_width_allowed
+ * @psoc: pointer to psoc object
+ * @value: pointer to the value which will be filled for the caller
+ *
+ * Return: QDF Status
+ */
+QDF_STATUS
+ucfg_mlme_get_update_chan_width_allowed(struct wlan_objmgr_psoc *psoc,
+					bool *value);
+
+/**
  * ucfg_mlme_get_channel_bonding_24ghz() - get channel bonding mode of 24ghz
  * @psoc:   pointer to psoc object
  * @value:  pointer to the value which will be filled for the caller
@@ -4702,6 +4725,7 @@ ucfg_mlme_get_channel_bonding_24ghz(struct wlan_objmgr_psoc *psoc,
 QDF_STATUS
 ucfg_mlme_set_channel_bonding_24ghz(struct wlan_objmgr_psoc *psoc,
 				    uint32_t value);
+
 /**
  * ucfg_mlme_get_channel_bonding_5ghz() - get channel bonding mode of 5ghz
  * @psoc:   pointer to psoc object
@@ -4904,17 +4928,17 @@ QDF_STATUS ucfg_mlme_update_bss_rate_flags(struct wlan_objmgr_psoc *psoc,
  * ucfg_mlme_send_ch_width_update_with_notify() - Send chwidth with notify
  * capability of FW
  * @psoc: pointer to psoc object
- * @vdev_id: Vdev id
+ * @link_vdev: Link VDEV object
  * @ch_width: channel width to update
- * @link_id: mlo link id
+ * @link_vdev_id: vdev id for each link
  *
  * Return: QDF_STATUS
  */
 QDF_STATUS
 ucfg_mlme_send_ch_width_update_with_notify(struct wlan_objmgr_psoc *psoc,
-					   uint8_t vdev_id,
+					   struct wlan_objmgr_vdev *link_vdev,
 					   enum phy_ch_width ch_width,
-					   uint8_t link_id);
+					   uint8_t link_vdev_id);
 
 /**
  * ucfg_mlme_is_chwidth_with_notify_supported() - Get chwidth with notify

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1468,10 +1468,12 @@ void DP_PRINT_STATS(const char *fmt, ...);
 #define DP_TX_HIST_STATS_PER_PDEV()
 #endif /* DISABLE_DP_STATS */
 
-#define FRAME_MASK_IPV4_ARP   1
-#define FRAME_MASK_IPV4_DHCP  2
-#define FRAME_MASK_IPV4_EAPOL 4
-#define FRAME_MASK_IPV6_DHCP  8
+#define FRAME_MASK_IPV4_ARP   0x1
+#define FRAME_MASK_IPV4_DHCP  0x2
+#define FRAME_MASK_IPV4_EAPOL 0x4
+#define FRAME_MASK_IPV6_DHCP  0x8
+#define FRAME_MASK_DNS_QUERY  0x10
+#define FRAME_MASK_DNS_RESP   0x20
 
 static inline int dp_log2_ceil(unsigned int value)
 {
@@ -2724,6 +2726,17 @@ void dp_peer_ppdu_delayed_ba_cleanup(struct dp_peer *peer);
 void dp_peer_rx_init(struct dp_pdev *pdev, struct dp_peer *peer);
 
 /**
+ * dp_peer_rx_init_wrapper() - Initialize receive TID state, based on peer type
+ * @pdev: Datapath pdev
+ * @peer: Datapath peer
+ * @setup_info: setup info received for setting up the peer
+ *
+ * Return: None
+ */
+void dp_peer_rx_init_wrapper(struct dp_pdev *pdev, struct dp_peer *peer,
+			     struct cdp_peer_setup_info *setup_info);
+
+/**
  * dp_peer_cleanup() - Cleanup peer information
  * @vdev: Datapath vdev
  * @peer: Datapath peer
@@ -2841,13 +2854,14 @@ uint8_t *dp_peer_get_peer_mac_addr(void *peer);
  * @soc: datapath soc handle
  * @vdev_id: vdev id
  * @peer_mac: peer mac addr
+ * @slowpath: call from slowpath or not
  *
  * Get local peer state
  *
  * Return: peer status
  */
 int dp_get_peer_state(struct cdp_soc_t *soc, uint8_t vdev_id,
-		      uint8_t *peer_mac);
+		      uint8_t *peer_mac, bool slowpath);
 
 /**
  * dp_local_peer_id_pool_init() - local peer id pool alloc for physical device
@@ -2984,6 +2998,23 @@ static inline void dp_umac_reset_trigger_pre_reset_notify_cb(struct dp_soc *soc)
 	if (callback)
 		callback(soc);
 }
+
+/**
+ * dp_reset_global_tx_desc_cleanup_flag() - Reset cleanup needed flag
+ * @soc: dp soc handle
+ *
+ * Return: None
+ */
+void dp_reset_global_tx_desc_cleanup_flag(struct dp_soc *soc);
+
+/**
+ * dp_get_global_tx_desc_cleanup_flag() - Get cleanup needed flag
+ * @soc: dp soc handle
+ *
+ * Return: cleanup needed/ not needed
+ */
+bool dp_get_global_tx_desc_cleanup_flag(struct dp_soc *soc);
+
 
 #if defined(WLAN_FEATURE_11BE_MLO) && defined(WLAN_MLO_MULTI_CHIP)
 /**
@@ -3505,6 +3536,14 @@ void dp_print_soc_interrupt_stats(struct dp_soc *soc);
  */
 
 void dp_print_tx_ppeds_stats(struct dp_soc *soc);
+
+/* REO destination ring's watermark mask */
+#define DP_SRNG_WM_MASK_REO_DST  BIT(REO_DST)
+/* TX completion ring's watermark mask */
+#define DP_SRNG_WM_MASK_TX_COMP  BIT(WBM2SW_RELEASE)
+/* All srng's watermark mask */
+#define DP_SRNG_WM_MASK_ALL  0xFFFFFFFF
+
 #ifdef WLAN_DP_SRNG_USAGE_WM_TRACKING
 /**
  * dp_dump_srng_high_wm_stats() - Print the ring usage high watermark stats
@@ -4464,6 +4503,25 @@ void dp_set_max_page_size(struct qdf_mem_multi_page_t *pages,
 #endif /* MAX_ALLOC_PAGE_SIZE */
 
 /**
+ * dp_get_next_index() - get the next entry to record an entry
+ *			 in the history.
+ * @curr_idx: Current index where the last entry is written.
+ * @max_entries: Max number of entries in the history
+ *
+ * This function assumes that the max number os entries is a power of 2.
+ *
+ * Return: The index where the next entry is to be written.
+ */
+
+static inline uint32_t dp_get_next_index(qdf_atomic_t *curr_idx,
+					 uint32_t max_entries)
+{
+	uint32_t idx = qdf_atomic_inc_return(curr_idx);
+
+	return idx & (max_entries - 1);
+}
+
+/**
  * dp_history_get_next_index() - get the next entry to record an entry
  *				 in the history.
  * @curr_idx: Current index where the last entry is written.
@@ -4476,9 +4534,7 @@ void dp_set_max_page_size(struct qdf_mem_multi_page_t *pages,
 static inline uint32_t dp_history_get_next_index(qdf_atomic_t *curr_idx,
 						 uint32_t max_entries)
 {
-	uint32_t idx = qdf_atomic_inc_return(curr_idx);
-
-	return idx & (max_entries - 1);
+	return dp_get_next_index(curr_idx, max_entries);
 }
 
 /**
@@ -5865,4 +5921,15 @@ void dp_ssr_dump_pdev_unregister(uint8_t pdev_id)
 {
 }
 #endif
+
+/**
+ * dp_get_peer_vdev_roaming_in_progress() - Check if peer's vdev is in roaming
+ *					    state.
+ * @peer: DP peer handle
+ *
+ * Return: true if the peer's vdev is in roaming state
+ *	   else false.
+ */
+bool dp_get_peer_vdev_roaming_in_progress(struct dp_peer *peer);
+
 #endif /* #ifndef _DP_INTERNAL_H_ */

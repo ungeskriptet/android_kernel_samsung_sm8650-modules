@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2015, 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -1007,10 +1007,12 @@ void cm_set_max_connect_attempts(struct wlan_objmgr_vdev *vdev,
 /**
  * cm_trigger_panic_on_cmd_timeout() - trigger panic on active command timeout
  * @vdev: vdev pointer
+ * @reason: Hang reason code
  *
  * Return: void
  */
-void cm_trigger_panic_on_cmd_timeout(struct wlan_objmgr_vdev *vdev);
+void cm_trigger_panic_on_cmd_timeout(struct wlan_objmgr_vdev *vdev,
+				     enum qdf_hang_reason reason);
 
 /**
  * cm_set_max_connect_timeout() - Set max connect timeout
@@ -1064,6 +1066,26 @@ bool cm_is_vdev_disconnecting(struct wlan_objmgr_vdev *vdev);
  * Return: bool
  */
 bool cm_is_vdev_disconnected(struct wlan_objmgr_vdev *vdev);
+
+#ifdef CONN_MGR_ADV_FEATURE
+/**
+ * cm_is_vdev_idle_due_to_link_switch() - Check if VDEV is in
+ * IDLE state due to link switch
+ * @vdev: VDEV objmgr pointer
+ *
+ * Returns true if the current CM SS is WLAN_CM_SS_IDLE_DUE_TO_LINK_SWITCH or
+ * returns false.
+ *
+ * Return: bool
+ */
+bool cm_is_vdev_idle_due_to_link_switch(struct wlan_objmgr_vdev *vdev);
+#else
+static inline bool
+cm_is_vdev_idle_due_to_link_switch(struct wlan_objmgr_vdev *vdev)
+{
+	return false;
+}
+#endif
 
 /**
  * cm_is_vdev_roaming() - check if vdev is in roaming state
@@ -1466,9 +1488,18 @@ cm_get_active_connect_req_param(struct wlan_objmgr_vdev *vdev,
 QDF_STATUS cm_get_rnr(struct wlan_objmgr_vdev *vdev, wlan_cm_id cm_id,
 		      struct reduced_neighbor_report *rnr);
 
+/**
+ * cm_get_curr_candidate_entry() - Get the current candidate from cnx mgr
+ * @vdev: VDEV object manager.
+ * @cm_id: cnx mgr ID.
+ *
+ * Get current entry of connection from the cnx mgr list.
+ * Caller to free the returned scan entry if not NULL.
+ *
+ * Return: Scan entry
+ */
 struct scan_cache_entry *
-cm_get_curr_candidate_entry(struct wlan_objmgr_vdev *vdev,
-			    wlan_cm_id cm_id);
+cm_get_curr_candidate_entry(struct wlan_objmgr_vdev *vdev, wlan_cm_id cm_id);
 
 /**
  * cm_free_connect_rsp_ies() - Function to free all connection IEs.

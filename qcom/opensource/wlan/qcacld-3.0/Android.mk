@@ -30,8 +30,14 @@ LOCAL_MODULE_DDK_BUILD := true
 LOCAL_MODULE_DDK_ALLOW_UNSAFE_HEADERS := true
 endif
 
+ifeq ($(TARGET_BOARD_PLATFORM), volcano)
+LOCAL_MODULE_DDK_BUILD := true
+LOCAL_MODULE_DDK_ALLOW_UNSAFE_HEADERS := true
+endif
+
 LOCAL_PATH := $(call my-dir)
 $(call wlog,LOCAL_PATH=$(LOCAL_PATH))
+BOARD_OPENSOURCE_DIR ?= sm8650-modules/qcom/opensource
 
 ENABLE_QCACLD := true
 ifeq ($(TARGET_USES_QMAA), true)
@@ -66,7 +72,7 @@ ifneq ($(WLAN_CHIPSET),)
 ifneq ($(findstring vendor,$(LOCAL_PATH)),)
 
 ifneq ($(findstring opensource,$(LOCAL_PATH)),)
-	WLAN_BLD_DIR := sm8650-modules/qcom/opensource/wlan
+	WLAN_BLD_DIR := $(BOARD_OPENSOURCE_DIR)/wlan
 endif # opensource
 
 # Multi-ko check

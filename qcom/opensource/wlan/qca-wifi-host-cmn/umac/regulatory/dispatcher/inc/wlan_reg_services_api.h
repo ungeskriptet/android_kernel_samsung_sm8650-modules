@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -150,6 +150,15 @@ uint16_t wlan_reg_get_max_chwidth(struct wlan_objmgr_pdev *pdev,
  */
 enum phy_ch_width
 wlan_reg_get_next_lower_bandwidth(enum phy_ch_width ch_width);
+
+/**
+ * wlan_reg_get_next_higher_bandwidth() - Get next higher bandwdith
+ * @ch_width: channel bandwdith
+ *
+ * Return: Return next higher bandwidth of input channel bandwidth
+ */
+enum phy_ch_width
+wlan_reg_get_next_higher_bandwidth(enum phy_ch_width ch_width);
 
 #ifdef CONFIG_REG_CLIENT
 /**
@@ -918,7 +927,7 @@ wlan_reg_is_sta_connect_allowed(struct wlan_objmgr_pdev *pdev,
 }
 #endif
 
-#if defined(WLAN_FEATURE_11BE) && defined(CONFIG_REG_CLIENT)
+#if defined(CONFIG_REG_CLIENT)
 /**
  * wlan_reg_get_bonded_channel_state_for_pwrmode() - Get bonded channel freq
  * state
@@ -2431,17 +2440,6 @@ wlan_reg_get_client_power_for_6ghz_ap(struct wlan_objmgr_pdev *pdev,
 				      uint16_t *eirp_psd_power);
 
 /**
- * wlan_reg_decide_6g_ap_pwr_type() - Decide which power mode AP should operate
- * in
- *
- * @pdev: pdev ptr
- *
- * Return: AP power type
- */
-enum reg_6g_ap_type
-wlan_reg_decide_6g_ap_pwr_type(struct wlan_objmgr_pdev *pdev);
-
-/**
  * wlan_reg_set_ap_pwr_and_update_chan_list() - Set the AP power mode and
  * recompute the current channel list
  *
@@ -2575,12 +2573,6 @@ wlan_reg_get_client_power_for_6ghz_ap(struct wlan_objmgr_pdev *pdev,
 	*tx_power = 0;
 	*eirp_psd_power = 0;
 	return QDF_STATUS_E_NOSUPPORT;
-}
-
-static inline enum reg_6g_ap_type
-wlan_reg_decide_6g_ap_pwr_type(struct wlan_objmgr_pdev *pdev)
-{
-	return REG_INDOOR_AP;
 }
 
 static inline QDF_STATUS
@@ -2866,7 +2858,6 @@ wlan_reg_get_num_afc_freq_obj(struct wlan_objmgr_pdev *pdev,
 QDF_STATUS wlan_reg_set_afc_power_event_received(struct wlan_objmgr_pdev *pdev,
 						 bool val);
 #endif
-
 #else
 static inline bool
 wlan_is_sup_chan_entry_afc_done(struct wlan_objmgr_pdev *pdev,
@@ -2881,7 +2872,6 @@ wlan_reg_display_super_chan_list(struct wlan_objmgr_pdev *pdev)
 {
 	return QDF_STATUS_E_NOSUPPORT;
 }
-
 #endif
 
 /**

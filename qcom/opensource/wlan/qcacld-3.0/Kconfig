@@ -1,7 +1,6 @@
 comment "Qualcomm Atheros CLD WLAN module"
 
 config QCA_CLD_WLAN
-
 	tristate "Qualcomm Atheros CLD WLAN module"
 	default n
 	help
@@ -23,10 +22,6 @@ config WLAN_FEATURE_NO_SAP_NAN_CONCURRENCY
 
 config WLAN_FEATURE_NO_P2P_CONCURRENCY
 	bool "Enable WLAN_FEATURE_NO_P2P_CONCURRENCY"
-	default n
-
-config WLAN_FEATURE_STA_SAP_P2P_CONCURRENCY
-	bool "Enable WLAN_FEATURE_STA_SAP_P2P_CONCURRENCY"
 	default n
 
 config 160MHZ_SUPPORT
@@ -102,12 +97,6 @@ config CE_DISABLE_SRNG_TIMER_IRQ
 	bool "Enable CE_DISABLE_SRNG_TIMER_IRQ"
 	default n
 
-config CFG_BMISS_OFFLOAD_MAX_VDEV
-	int "Enable CFG_BMISS_OFFLOAD_MAX_VDEV"
-
-config CFG_MAX_STA_VDEVS
-	int "Enable CFG_MAX_STA_VDEVS"
-
 config CHECKSUM_OFFLOAD
 	bool "Enable CHECKSUM_OFFLOAD"
 	default n
@@ -136,8 +125,8 @@ config CNSS_UTILS_MODULE
 	default n
 
 config CNSS_UTILS
-        bool "Enable CNSS_UTILS"
-        default n
+    tristate "Enable CNSS_UTILS"
+    default n
 
 config CONNECTIVITY_PKTLOG
 	bool "Enable CONNECTIVITY_PKTLOG"
@@ -269,10 +258,6 @@ config DP_RX_REFILL_CPU_PERF_AFFINE_MASK
 
 config DP_RX_SPECIAL_FRAME_NEED
 	bool "Enable DP_RX_SPECIAL_FRAME_NEED"
-	default n
-
-config DP_RX_MSDU_DONE_FAIL_HISTORY
-	bool "Enable DP_RX_MSDU_DONE_FAIL_HISTORY"
 	default n
 
 config DP_TRACE
@@ -890,10 +875,6 @@ config REO_QDESC_HISTORY
 	bool "Enable REO_QDESC_HISTORY"
 	default n
 
-config ROME_IF
-	string "Enable ROME_IF"
-	default pci
-
 config RPS
 	bool "enable CONFIG_QCA_CONFIG_RPS"
 	default n
@@ -1042,7 +1023,7 @@ config WCNSS_MEM_PRE_ALLOC_MODULE
 	default n
 
 config WCNSS_MEM_PRE_ALLOC
-	bool "Enable WCNSS_MEM_PRE_ALLOC"
+	tristate "Enable WCNSS_MEM_PRE_ALLOC"
 	default n
 
 config WDI_EVENT_ENABLE
@@ -1134,6 +1115,11 @@ config WLAN_DISABLE_EXPORT_SYMBOL
 	bool "Enable WLAN_DISABLE_EXPORT_SYMBOL"
 	default n
 
+config WLAN_MULTI_CHIP_SUPPORT
+	bool "Enable WLAN_MULTI_CHIP_SUPPORT"
+	select WLAN_DISABLE_EXPORT_SYMBOL
+	default n
+
 config WLAN_DL_MODES
 	bool "Enable WLAN_DL_MODES"
 	default n
@@ -1184,6 +1170,10 @@ config WLAN_FEATURE_11BE
 
 config WLAN_FEATURE_11BE_MLO
 	bool "Enable WLAN_FEATURE_11BE_MLO"
+	default n
+
+config WLAN_FEATURE_PEER_TRANS_HIST
+	bool "Enable Peer transition history"
 	default n
 
 config WLAN_HDD_MULTI_VDEV_SINGLE_NDEV
@@ -1355,6 +1345,10 @@ config WLAN_FEATURE_SAP_ACS_OPTIMIZE
 	bool "Enable WLAN_FEATURE_SAP_ACS_OPTIMIZE"
 	default n
 
+config FEATURE_WLAN_GC_SKIP_JOIN
+	bool "enable CONFIG_FEATURE_WLAN_GC_SKIP_JOIN"
+	default n
+
 config WLAN_FEATURE_SARV1_TO_SARV2
 	bool "Enable conversion of SAR v1 to v2 feature"
 	default n
@@ -1369,10 +1363,6 @@ config WLAN_FEATURE_TWT
 
 config WLAN_FEATURE_WMI_DIAG_OVER_CE7
 	bool "Enable WLAN_FEATURE_WMI_DIAG_OVER_CE7"
-	default n
-
-config WLAN_FEATURE_MARK_FIRST_WAKEUP_PACKET
-	bool "Enable WLAN_FEATURE_MARK_FIRST_WAKEUP_PACKET"
 	default n
 
 config WLAN_FREQ_LIST
@@ -1716,7 +1706,6 @@ config WLAN_WBUFF
 
 config WLAN_WEXT_SUPPORT_ENABLE
 	bool "Enable WLAN_WEXT_SUPPORT_ENABLE"
-	depends on CFG80211_WEXT
 	default n
 
 config WLAN_WOW_ITO
@@ -1945,7 +1934,128 @@ config WLAN_SYSFS_RF_TEST_MODE
 	bool "enable CONFIG_WLAN_SYSFS_RF_TEST_MODE"
 	default n
 
-config WLAN_SAMSUNG_FEATURE
-	bool "enable WLAN_SAMSUNG_FEATURE"
+config WLAN_FEATURE_MARK_FIRST_WAKEUP_PACKET
+	bool "enable WLAN_FEATURE_MARK_FIRST_WAKEUP_PACKET"
 	default n
+
+config CNSS2_MODULE
+	bool "Enable CONFIG_CNSS2_MODULE"
+	default n
+
+config DP_RX_DESC_COOKIE_INVALIDATE
+	bool "Enable CONFIG_DP_RX_DESC_COOKIE_INVALIDATE"
+	default n
+
+config DP_SWLM
+	bool "Enable DP_SWLM"
+	default n
+
+config DP_TX_TRACKING
+	bool "Enable DP_TX_TRACKING"
+	default n
+
+config DP_WAR_VALIDATE_RX_ERR_MSDU_COOKIE
+	bool "Enable DP_WAR_VALIDATE_RX_ERR_MSDU_COOKIE"
+	default n
+
+config FEATURE_AST
+	bool "Enable FEATURE_AST"
+	default n
+
+config HIF_IPCI
+	bool "Enable HIF_IPCI"
+	default n
+
+config HOST_WAKEUP_OVER_QMI
+	bool "Enable HOST_WAKEUP_OVER_QMI"
+	default n
+
+config LITHIUM
+	bool "Enable LITHIUM"
+	default n
+
+config QCA6750_HEADERS_DEF
+	bool "Enable QCA6750_HEADERS_DEF"
+	default n
+
+config QCA_TARGET_IF_MLME
+	bool "Enable QCA_TARGET_IF_MLME"
+	default n
+
+config QCA_WIFI_QCA6750
+	bool "Enable QCA_WIFI_QCA6750"
+	default n
+
+config PLD_IPCI_ICNSS_FLAG
+	bool "Enable PLD_IPCI_ICNSS_FLAG"
+	default n
+
+config SHADOW_V2
+	bool "Enable SHADOW_V2"
+	default n
+
+config WLAN_DP_PROFILE_SUPPORT
+	bool "Enable WLAN_DP_PROFILE_SUPPORT"
+	default n
+
+config WLAN_FEATURE_CE_RX_BUFFER_REUSE
+	bool "Enable WLAN_FEATURE_CE_RX_BUFFER_REUSE"
+	default n
+
+config WLAN_STREAMFS
+	bool "Enable WLAN_STREAMFS"
+	default n
+
+config WLAN_SYSFS_ROAM_TRIGGER_BITMAP
+	bool "Enable WLAN_SYSFS_ROAM_TRIGGER_BITMAP"
+	default n
+
+config WLAN_SYSFS_WDS_MODE
+	bool "Enable WLAN_SYSFS_WDS_MODE"
+	default n
+
+config WLAN_TRACE_HIDE_MAC_ADDRESS
+	bool "Enable WLAN_TRACE_HIDE_MAC_ADDRESS"
+	default n
+
+config CNSS_QCA6750
+	bool "Enable CNSS_QCA6750"
+	default n
+
+menu "Optional Configs"
+
+if CNSS_KIWI_V2
+
+config CFG_BMISS_OFFLOAD_MAX_VDEV
+	int "Enable CFG_BMISS_OFFLOAD_MAX_VDEV"
+
+config CFG_MAX_STA_VDEVS
+	int "Enable CFG_MAX_STA_VDEVS"
+
+config ROME_IF
+	string "Enable ROME_IF"
+	default pci
+
+endif
+
+if CNSS_QCA6750
+
+config ROME_IF
+	string "Enable ROME_IF"
+	default ipci
+
+config DP_LEGACY_MODE_CSM_DEFAULT_DISABLE
+        int "Enable CONFIG_DP_LEGACY_MODE_CSM_DEFAULT_DISABLE"
+
+endif
+
+config DP_RX_MSDU_DONE_FAIL_HISTORY
+	bool "Enable DP_RX_MSDU_DONE_FAIL_HISTORY"
+	default n
+
+config DP_RX_PEEK_MSDU_DONE_WAR
+	bool "Enable DP_RX_PEEK_MSDU_DONE_WAR"
+	default n
+
+endmenu
 endif # QCA_CLD_WLAN

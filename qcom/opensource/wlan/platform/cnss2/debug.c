@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2016-2021, The Linux Foundation. All rights reserved. */
-/* Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved. */
+/* Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved. */
 
 
 #include <linux/err.h>
@@ -13,12 +13,7 @@
 
 #define MMIO_REG_ACCESS_MEM_TYPE		0xFF
 #define MMIO_REG_RAW_ACCESS_MEM_TYPE		0xFE
-// The print type has been temporarily changed to Warning for debugging purpose
-#if 0
-#define DEFAULT_KERNEL_LOG_LEVEL               INFO_LOG
-#else
-#define DEFAULT_KERNEL_LOG_LEVEL               MAX_LOG
-#endif
+#define DEFAULT_KERNEL_LOG_LEVEL		INFO_LOG
 #define DEFAULT_IPC_LOG_LEVEL			DEBUG_LOG
 
 enum log_level cnss_kernel_log_level = DEFAULT_KERNEL_LOG_LEVEL;
@@ -179,6 +174,9 @@ static int cnss_stats_show_state(struct seq_file *s,
 		case CNSS_DRIVER_REGISTERED:
 			seq_puts(s, "DRIVER REGISTERED");
 			continue;
+		case CNSS_POWER_OFF:
+			seq_puts(s, "POWER OFF");
+			continue;
 		}
 
 		seq_printf(s, "UNKNOWN-%d", i);
@@ -267,6 +265,8 @@ static ssize_t cnss_dev_boot_debug_write(struct file *fp,
 					     0, NULL);
 		clear_bit(CNSS_DRIVER_DEBUG, &plat_priv->driver_state);
 	} else if (sysfs_streq(cmd, "assert_host_sol")) {
+		pci_priv = plat_priv->bus_priv;
+		cnss_auto_resume(&pci_priv->pci_dev->dev);
 		ret = cnss_set_host_sol_value(plat_priv, 1);
 	} else if (sysfs_streq(cmd, "deassert_host_sol")) {
 		ret = cnss_set_host_sol_value(plat_priv, 0);
@@ -326,6 +326,10 @@ static int cnss_dev_boot_debug_show(struct seq_file *s, void *data)
 	seq_puts(s, "\npdc_update usage:");
 	seq_puts(s, "1. echo pdc_update {class: wlan_pdc ss: <pdc_ss>, res: <vreg>.<mode>, <seq>: <val>} > <debugfs_path>/cnss/dev_boot\n");
 	seq_puts(s, "2. echo pdc_update {class: wlan_pdc ss: <pdc_ss>, res: pdc, enable: <val>} > <debugfs_path>/cnss/dev_boot\n");
+	seq_puts(s, "assert_host_sol: Assert host sol\n");
+	seq_puts(s, "deassert_host_sol: Deassert host sol\n");
+	seq_puts(s, "dev_check: Check whether HW is disabled or not\n");
+	seq_puts(s, "dev_enable: Enable HW\n");
 
 	return 0;
 }
@@ -1093,8 +1097,6 @@ void cnss_debug_ipc_log_print(void *log_ctx, char *process, const char *fn,
 		case WARNING_LOG:
 			pr_warn("cnss: %pV", &vaf);
 			break;
-// The print type has been temporarily changed to Warning for debugging purpose
-#if 0
 		case NOTICE_LOG:
 			pr_notice("cnss: %pV", &vaf);
 			break;
@@ -1105,20 +1107,6 @@ void cnss_debug_ipc_log_print(void *log_ctx, char *process, const char *fn,
 		case DEBUG_HI_LOG:
 			pr_debug("cnss: %pV", &vaf);
 			break;
-#else
-		case NOTICE_LOG:
-			pr_warn("cnss: %pV", &vaf);
-			break;
-		case INFO_LOG:
-			pr_warn("cnss: %pV", &vaf);
-			break;
-		case DEBUG_LOG:
-			pr_warn("cnss: %pV", &vaf);
-			break;
-		case DEBUG_HI_LOG:
-			pr_warn("cnss: %pV", &vaf);
-			break;
-#endif
 		default:
 			break;
 		}
@@ -1193,8 +1181,6 @@ void cnss_debug_ipc_log_print(void *log_ctx, char *process, const char *fn,
 		case WARNING_LOG:
 			pr_warn("cnss: %pV", &vaf);
 			break;
-// The print type has been temporarily changed to Warning for debugging purpose
-#if 0
 		case NOTICE_LOG:
 			pr_notice("cnss: %pV", &vaf);
 			break;
@@ -1205,18 +1191,6 @@ void cnss_debug_ipc_log_print(void *log_ctx, char *process, const char *fn,
 		case DEBUG_HI_LOG:
 			pr_debug("cnss: %pV", &vaf);
 			break;
-#else
-		case NOTICE_LOG:
-			pr_warn("cnss: %pV", &vaf);
-			break;
-		case INFO_LOG:
-			pr_warn("cnss: %pV", &vaf);
-			break;
-		case DEBUG_LOG:
-		case DEBUG_HI_LOG:
-			pr_warn("cnss: %pV", &vaf);
-			break;
-#endif
 		default:
 			break;
 		}

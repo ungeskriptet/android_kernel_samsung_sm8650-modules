@@ -252,7 +252,9 @@ struct wlan_mlme_roam_state_info {
  * @roam_trigger_bitmap: Master bitmap of roaming triggers. If the bitmap is
  *  zero, roaming module will be deinitialized at firmware for this vdev.
  * @supplicant_disabled_roaming: Enable/disable roam scan in firmware; will be
- *  used by supplicant to do roam invoke after disabling roam scan in firmware
+ *  used by supplicant to do roam invoke after disabling roam scan in firmware,
+ *  it is only effective for current connection, it will be cleared during new
+ *  connection.
  */
 struct wlan_mlme_roaming_config {
 	uint32_t roam_trigger_bitmap;
@@ -430,6 +432,8 @@ struct assoc_channel_info {
  * @ext_cap_ie: Ext CAP IE
  * @assoc_btm_cap: BSS transition management cap used in (re)assoc req
  * @assoc_chan_info: store channel info at the time of association
+ * @force_20mhz_in_24ghz: Only 20 MHz BW allowed in 2.4 GHz
+ *
  */
 struct mlme_connect_info {
 	uint8_t timing_meas_cap;
@@ -456,6 +460,7 @@ struct mlme_connect_info {
 	uint8_t ext_cap_ie[DOT11F_IE_EXTCAP_MAX_LEN + 2];
 	bool assoc_btm_cap;
 	struct assoc_channel_info assoc_chan_info;
+	bool force_20mhz_in_24ghz;
 };
 
 /** struct wait_for_key_timer - wait for key timer object
@@ -475,6 +480,7 @@ struct wait_for_key_timer {
  * concurrent STA
  * @ap_policy: Concurrent ap policy config
  * @oper_ch_width: SAP current operating ch_width
+ * @psd_20mhz: PSD power(dBm/MHz) of SAP operating in 20 MHz
  */
 struct mlme_ap_config {
 	qdf_freq_t user_config_sap_ch_freq;
@@ -483,6 +489,7 @@ struct mlme_ap_config {
 #endif
 	enum host_concurrent_ap_policy ap_policy;
 	enum phy_ch_width oper_ch_width;
+	uint8_t psd_20mhz;
 };
 
 /**
@@ -720,12 +727,6 @@ struct roam_scan_chn {
  *  For non-MLO scenario, it indicates the original connected AP BSSID.
  *  For MLO scenario, it indicates the original BSSID of the link
  *  for which the reassociation occurred during the roam.
- * @candidate_bssid: roam candidate AP BSSID when roam failed.
- *  If the firmware updates more than one candidate AP BSSID
- *  to the driver, the driver only fills the last candidate AP BSSID.
- *  For non-MLO scenario, it indicates the last candidate AP BSSID.
- *  For MLO scenario, it indicates the AP BSSID which may be the primary
- *  link BSSID or a nonprimary link BSSID.
  * @roamed_bssid: roamed AP BSSID when roam succeeds.
  *  For non-MLO case, it indicates new AP BSSID which has been
  *  successfully roamed.
@@ -737,7 +738,6 @@ struct eroam_scan_info {
 	struct roam_scan_chn roam_chn[MAX_ROAM_SCAN_CHAN];
 	uint32_t total_scan_time;
 	struct qdf_mac_addr original_bssid;
-	struct qdf_mac_addr candidate_bssid;
 	struct qdf_mac_addr roamed_bssid;
 };
 
@@ -748,15 +748,15 @@ struct eroam_scan_info {
  * @timestamp: timestamp of the auth/assoc/eapol-M1/M2/M3/M4 frame,
  *  if status is successful, indicate received or send success,
  *  if status is failed, timestamp indicate roaming fail at that time
+ * @bssid: Source address for auth/assoc/eapol frame.
  */
 struct eroam_frame_info {
 	enum eroam_frame_subtype frame_type;
 	enum eroam_frame_status status;
 	uint64_t timestamp;
-};
+	struct qdf_mac_addr bssid;
 
-/* Key frame num during roaming: PREAUTH/PREASSOC/EAPOL M1-M4 */
-#define ROAM_FRAME_NUM 6
+};
 
 /**
  * struct enhance_roam_info - enhance roam information
@@ -767,7 +767,7 @@ struct eroam_frame_info {
 struct enhance_roam_info {
 	struct eroam_trigger_info trigger;
 	struct eroam_scan_info scan;
-	struct eroam_frame_info timestamp[ROAM_FRAME_NUM];
+	struct eroam_frame_info timestamp[WLAN_ROAM_MAX_FRAME_INFO];
 };
 
 /**
@@ -1987,4 +1987,23 @@ QDF_STATUS
 wlan_mlme_send_csa_event_status_ind_cmd(struct wlan_objmgr_vdev *vdev,
 					uint8_t csa_status);
 
+/**
+ * wlan_mlme_get_sap_psd_for_20mhz() - Get the PSD power for 20 MHz
+ * frequency
+ * @vdev: pointer to vdev object
+ *
+ * Return: psd power
+ */
+uint8_t wlan_mlme_get_sap_psd_for_20mhz(struct wlan_objmgr_vdev *vdev);
+
+/**
+ * wlan_mlme_set_sap_psd_for_20mhz() - Set the PSD power for 20 MHz
+ * frequency
+ * @vdev: pointer to vdev object
+ * @psd_power : psd power
+ *
+ * Return: None
+ */
+QDF_STATUS wlan_mlme_set_sap_psd_for_20mhz(struct wlan_objmgr_vdev *vdev,
+					   uint8_t psd_power);
 #endif

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2015, 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -1097,12 +1097,11 @@ QDF_STATUS cm_connect_start_ind(struct wlan_objmgr_vdev *vdev,
 	if (wlan_get_vendor_ie_ptr_from_oui(HS20_OUI_TYPE,
 					    HS20_OUI_TYPE_SIZE,
 					    req->assoc_ie.ptr,
-					    req->assoc_ie.len)) {
+					    req->assoc_ie.len))
 		src_cfg.bool_value = true;
-		wlan_cm_roam_cfg_set_value(wlan_vdev_get_psoc(vdev),
-					   wlan_vdev_get_id(vdev),
-					   HS_20_AP, &src_cfg);
-	}
+	wlan_cm_roam_cfg_set_value(wlan_vdev_get_psoc(vdev),
+				   wlan_vdev_get_id(vdev),
+				   HS_20_AP, &src_cfg);
 	if (req->source != CM_MLO_LINK_SWITCH_CONNECT)
 		ml_nlink_conn_change_notify(
 			psoc, wlan_vdev_get_id(vdev),
@@ -1163,7 +1162,7 @@ set_partner_info_for_2link_sap(struct scan_cache_entry *scan_entry,
 #endif
 
 static void
-cm_check_nontx_mbssid_partner_entries(struct cm_connect_req *conn_req)
+cm_check_ml_missing_partner_entries(struct cm_connect_req *conn_req)
 {
 	uint8_t idx;
 	struct scan_cache_entry *entry, *partner_entry;
@@ -1174,12 +1173,13 @@ cm_check_nontx_mbssid_partner_entries(struct cm_connect_req *conn_req)
 	entry = conn_req->cur_candidate->entry;
 	mld_addr = util_scan_entry_mldaddr(entry);
 
-	if (!mld_addr || !entry->ml_info.num_links ||
-	    !entry->mbssid_info.profile_num ||
-	    !qdf_mem_cmp(entry->mbssid_info.trans_bssid, &entry->bssid,
-			 QDF_MAC_ADDR_SIZE)) {
+	/*
+	 * If the entry is not one of following, return gracefully:
+	 *   -AP is not ML type
+	 *   -AP is SLO
+	 */
+	if (!mld_addr || !entry->ml_info.num_links)
 		return;
-	}
 
 	for (idx = 0; idx < entry->ml_info.num_links; idx++) {
 		if (!entry->ml_info.link_info[idx].is_valid_link)
@@ -1188,6 +1188,11 @@ cm_check_nontx_mbssid_partner_entries(struct cm_connect_req *conn_req)
 		partner_info = &entry->ml_info.link_info[idx];
 		partner_entry = cm_get_entry(candidate_list,
 					     &partner_info->link_addr);
+		/*
+		 * If partner entry is not found in candidate list or if
+		 * the MLD address of the entry is not equal to current
+		 * candidate MLD address, treat it as entry not found.
+		 */
 		if (!partner_entry ||
 		    !qdf_is_macaddr_equal(mld_addr,
 					  &partner_entry->ml_info.mld_mac_addr)) {
@@ -1205,6 +1210,9 @@ cm_get_ml_partner_info(struct wlan_objmgr_pdev *pdev,
 	struct wlan_objmgr_psoc *psoc;
 	struct scan_cache_entry *scan_entry = conn_req->cur_candidate->entry;
 	struct mlo_partner_info *partner_info = &conn_req->req.ml_parnter_info;
+
+	/* Initialize number of partner links as zero */
+	partner_info->num_partner_links = 0;
 
 	/* If ML IE is not present then return failure*/
 	if (!scan_entry->ie_list.multi_link_bv)
@@ -1256,7 +1264,7 @@ cm_get_ml_partner_info(struct wlan_objmgr_pdev *pdev,
 	mlme_debug("sta and ap intersect num of partner link: %d", j);
 
 	set_partner_info_for_2link_sap(scan_entry, partner_info);
-	cm_check_nontx_mbssid_partner_entries(conn_req);
+	cm_check_ml_missing_partner_entries(conn_req);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -1454,7 +1462,7 @@ cm_update_hlp_data_from_assoc_ie(struct wlan_objmgr_vdev *vdev,
 
 QDF_STATUS
 cm_handle_connect_req(struct wlan_objmgr_vdev *vdev,
-		      struct wlan_cm_vdev_connect_req *req)
+			    struct wlan_cm_vdev_connect_req *req)
 {
 	struct cm_vdev_join_req *join_req;
 	struct scheduler_msg msg;
@@ -1505,9 +1513,6 @@ cm_handle_connect_req(struct wlan_objmgr_vdev *vdev,
 			   req->bss->entry->bssid.bytes,
 			   req->bss->entry->neg_sec_info.key_mgmt,
 			   req->bss->entry->channel.chan_freq);
-	if (mlme_obj->cfg.obss_ht40.is_override_ht20_40_24g &&
-	    !(req->ht_caps & WLAN_HTCAP_C_CHWIDTH40))
-		join_req->force_24ghz_in_ht20 = true;
 
 	msg.bodyptr = join_req;
 	msg.type = CM_CONNECT_REQ;
@@ -1701,11 +1706,11 @@ static void
 cm_install_link_vdev_keys(struct wlan_objmgr_vdev *vdev)
 {
 	struct wlan_crypto_key *crypto_key;
+	struct wlan_crypto_params *crypto_params;
 	enum QDF_OPMODE op_mode;
 	uint16_t i;
 	bool pairwise;
-	uint8_t vdev_id;
-	uint8_t link_id;
+	uint8_t vdev_id, link_id;
 	bool key_present = false;
 	uint16_t max_key_index = WLAN_CRYPTO_MAXKEYIDX +
 				 WLAN_CRYPTO_MAXIGTKKEYIDX +
@@ -1718,6 +1723,16 @@ cm_install_link_vdev_keys(struct wlan_objmgr_vdev *vdev)
 	op_mode = wlan_vdev_mlme_get_opmode(vdev);
 	if (op_mode != QDF_STA_MODE ||
 	    !wlan_vdev_mlme_is_mlo_link_vdev(vdev))
+		return;
+
+	crypto_params = wlan_crypto_vdev_get_crypto_params(vdev);
+	if (!crypto_params) {
+		mlme_err("crypto params is null");
+		return;
+	}
+
+	if (!crypto_params->ucastcipherset ||
+	    QDF_HAS_PARAM(crypto_params->ucastcipherset, WLAN_CRYPTO_CIPHER_NONE))
 		return;
 
 	link_id = wlan_vdev_get_link_id(vdev);
@@ -1758,6 +1773,8 @@ cm_connect_complete_ind(struct wlan_objmgr_vdev *vdev,
 	struct wlan_objmgr_pdev *pdev;
 	struct wlan_objmgr_psoc *psoc;
 	enum QDF_OPMODE op_mode;
+	bool eht_capab = false;
+	QDF_STATUS status;
 
 	if (!vdev || !rsp) {
 		mlme_err("vdev or rsp is NULL");
@@ -1809,6 +1826,17 @@ cm_connect_complete_ind(struct wlan_objmgr_vdev *vdev,
 		wlan_p2p_status_connect(vdev);
 		cm_update_tid_mapping(vdev);
 		cm_update_associated_ch_info(vdev, true);
+
+		wlan_psoc_mlme_get_11be_capab(psoc, &eht_capab);
+		if (eht_capab) {
+			status = policy_mgr_current_connections_update(
+					psoc, vdev_id,
+					rsp->freq,
+					POLICY_MGR_UPDATE_REASON_STA_CONNECT,
+					POLICY_MGR_DEF_REQ_ID);
+			if (status == QDF_STATUS_E_FAILURE)
+				mlme_debug("Failed to take next action after connect");
+		}
 	}
 
 	mlo_roam_connect_complete(vdev);

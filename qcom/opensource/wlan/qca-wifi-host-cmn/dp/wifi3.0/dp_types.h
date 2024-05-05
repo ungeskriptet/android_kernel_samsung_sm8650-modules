@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1190,6 +1190,22 @@ struct reo_cmd_event_history {
 };
 #endif /* WLAN_FEATURE_DP_EVENT_HISTORY */
 
+/**
+ * struct htt_t2h_msg_stats: HTT T2H message stats
+ * @peer_map: Peer map event count
+ * @peer_unmap: Peer unmap event count (peer_unmap -= ml_peer_unmap)
+ * @invalid_peer_unmap: Peer unmap with invalid peer id
+ * @ml_peer_map: MLD peer map count
+ * @ml_peer_unmap: MLD peer unmap count
+ */
+struct htt_t2h_msg_stats {
+	uint32_t peer_map;
+	uint32_t peer_unmap;
+	uint32_t invalid_peer_unmap;
+	uint32_t ml_peer_map;
+	uint32_t ml_peer_unmap;
+};
+
 /* SoC level data path statistics */
 struct dp_soc_stats {
 	struct {
@@ -1409,6 +1425,7 @@ struct dp_soc_stats {
 #ifdef WLAN_FEATURE_DP_EVENT_HISTORY
 	struct reo_cmd_event_history cmd_event_history;
 #endif /* WLAN_FEATURE_DP_EVENT_HISTORY */
+	struct htt_t2h_msg_stats t2h_msg_stats;
 };
 
 union dp_align_mac_addr {
@@ -1542,7 +1559,7 @@ struct rx_refill_buff_pool {
 	uint16_t tail;
 	struct dp_pdev *dp_pdev;
 	uint16_t max_bufq_len;
-	qdf_nbuf_t buf_elem[2048];
+	qdf_nbuf_t *buf_elem;
 };
 
 #ifdef DP_TX_HW_DESC_HISTORY
@@ -2469,7 +2486,7 @@ struct dp_arch_ops {
 				      enum peer_stats_type stats_type);
 	QDF_STATUS (*dp_peer_rx_reorder_queue_setup)(struct dp_soc *soc,
 						     struct dp_peer *peer,
-						     int tid,
+						     uint32_t tid_bitmap,
 						     uint32_t ba_window_size);
 	void (*dp_bank_reconfig)(struct dp_soc *soc, struct dp_vdev *vdev);
 
@@ -2572,6 +2589,7 @@ struct dp_arch_ops {
  * @rssi_dbm_conv_support: Rssi dbm conversion support param.
  * @umac_hw_reset_support: UMAC HW reset support
  * @wds_ext_ast_override_enable:
+ * @multi_rx_reorder_q_setup_support: multi rx reorder q setup at a time support
  */
 struct dp_soc_features {
 	uint8_t pn_in_reo_dest:1,
@@ -2579,6 +2597,7 @@ struct dp_soc_features {
 	bool rssi_dbm_conv_support;
 	bool umac_hw_reset_support;
 	bool wds_ext_ast_override_enable;
+	bool multi_rx_reorder_q_setup_support;
 };
 
 enum sysfs_printing_mode {
@@ -2645,15 +2664,25 @@ struct test_qaddr_del {
 
 #ifdef DP_RX_MSDU_DONE_FAIL_HISTORY
 
-#define DP_MSDU_DONE_FAIL_HIST_MAX 32
+#define DP_MSDU_DONE_FAIL_HIST_MAX 128
 
 struct dp_msdu_done_fail_entry {
 	qdf_dma_addr_t paddr;
+	uint32_t sw_cookie;
 };
 
 struct dp_msdu_done_fail_history {
 	qdf_atomic_t index;
 	struct dp_msdu_done_fail_entry entry[DP_MSDU_DONE_FAIL_HIST_MAX];
+};
+#endif
+
+#ifdef DP_RX_PEEK_MSDU_DONE_WAR
+#define DP_MSDU_DONE_FAIL_DESCS_MAX 64
+
+struct dp_rx_msdu_done_fail_desc_list {
+	qdf_atomic_t index;
+	struct dp_rx_desc *msdu_done_fail_descs[DP_MSDU_DONE_FAIL_DESCS_MAX];
 };
 #endif
 
@@ -3229,6 +3258,11 @@ struct dp_soc {
 #ifdef DP_RX_MSDU_DONE_FAIL_HISTORY
 	struct dp_msdu_done_fail_history *msdu_done_fail_hist;
 #endif
+#ifdef DP_RX_PEEK_MSDU_DONE_WAR
+	struct dp_rx_msdu_done_fail_desc_list msdu_done_fail_desc_list;
+#endif
+	/* monitor interface flags */
+	uint32_t mon_flags;
 };
 
 #ifdef IPA_OFFLOAD
@@ -4084,6 +4118,9 @@ struct dp_vdev {
 	/* callback to classify critical packets */
 	ol_txrx_classify_critical_pkt_fp tx_classify_critical_pkt_cb;
 
+	/* delete notifier to DP component */
+	ol_txrx_vdev_delete_cb vdev_del_notify;
+
 	/* deferred vdev deletion state */
 	struct {
 		/* VDEV delete pending */
@@ -4463,12 +4500,14 @@ struct dp_peer_mesh_latency_parameter {
  * @vdev_id: Vdev ID for current link peer
  * @is_valid: flag for link peer info valid or not
  * @chip_id: chip id
+ * @is_bridge_peer: flag to indicate if peer is bridge peer
  */
 struct dp_peer_link_info {
 	union dp_align_mac_addr mac_addr;
 	uint8_t vdev_id;
 	uint8_t is_valid;
 	uint8_t chip_id;
+	uint8_t is_bridge_peer;
 };
 
 /**
@@ -4900,6 +4939,20 @@ struct dp_peer_stats {
 };
 
 /**
+ * struct dp_local_link_id_peer_map - Mapping table entry for link peer mac
+ *				      address to local_link_id
+ * @in_use: set if this entry is having valid mapping between local_link_id
+ *	    and the link peer mac address.
+ * @local_link_id: local_link_id assigned to the link peer
+ * @mac_addr: link peer mac address
+ */
+struct dp_local_link_id_peer_map {
+	uint8_t in_use;
+	uint8_t local_link_id;
+	union dp_align_mac_addr mac_addr;
+};
+
+/**
  * struct dp_txrx_peer: DP txrx_peer structure used in per pkt path
  * @vdev: VDEV to which this peer is associated
  * @peer_id: peer ID for this peer
@@ -4929,6 +4982,8 @@ struct dp_peer_stats {
  * @bw: bandwidth of peer connection
  * @mpdu_retry_threshold: MPDU retry threshold to increment tx bad count
  * @band: Link ID to band mapping
+ * @ll_id_peer_map: Mapping table for link peer mac address to local_link_id
+ * @ll_band: Local link id band mapping
  * @stats_arr_size: peer stats array size
  * @stats: Peer link and mld statistics
  */
@@ -4982,6 +5037,9 @@ struct dp_txrx_peer {
 #if defined WLAN_FEATURE_11BE_MLO && defined DP_MLO_LINK_STATS_SUPPORT
 	/* Link ID to band mapping, (1 MLD + DP_MAX_MLO_LINKS) */
 	uint8_t band[DP_MAX_MLO_LINKS + 1];
+
+	struct dp_local_link_id_peer_map ll_id_peer_map[DP_MAX_MLO_LINKS];
+	uint8_t ll_band[DP_MAX_MLO_LINKS + 1];
 #endif
 	uint8_t stats_arr_size;
 
@@ -5030,14 +5088,15 @@ struct dp_peer {
 		sta_self_peer:1, /* Indicate STA self peer */
 		is_tdls_peer:1; /* Indicate TDLS peer */
 
+	/* MCL specific peer local id */
+	uint16_t local_id;
+	enum ol_txrx_peer_state state;
+
 #ifdef WLAN_FEATURE_11BE_MLO
 	uint8_t first_link:1, /* first link peer for MLO */
 		primary_link:1; /* primary link for MLO */
 #endif
 
-	/* MCL specific peer local id */
-	uint16_t local_id;
-	enum ol_txrx_peer_state state;
 	qdf_spinlock_t peer_info_lock;
 
 	/* Peer calibrated stats */
@@ -5085,11 +5144,15 @@ struct dp_peer {
 	/*Link ID of link peer*/
 	uint8_t link_id;
 	bool link_id_valid;
+	uint8_t local_link_id;
 
 	/*---------for mld peer----------*/
 	struct dp_peer_link_info link_peers[DP_MAX_MLO_LINKS];
 	uint8_t num_links;
 	DP_MUTEX_TYPE link_peers_info_lock;
+#ifdef WLAN_FEATURE_11BE_MLO_3_LINK_TX
+	uint32_t flow_cnt[CDP_DATA_TID_MAX];
+#endif
 #endif
 #ifdef CONFIG_SAWF_DEF_QUEUES
 	struct dp_peer_sawf *sawf;

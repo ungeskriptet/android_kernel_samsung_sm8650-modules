@@ -165,7 +165,7 @@ static enum sigma_cmd_result cmd_ap_ca_version(struct sigma_dut *dut,
 }
 
 
-static void kill_hostapd_process_pid(struct sigma_dut *dut)
+void kill_hostapd_process_pid(struct sigma_dut *dut)
 {
 	FILE *f;
 	int pid, res;
@@ -614,6 +614,7 @@ static int run_hostapd_cli(struct sigma_dut *dut, char *buf)
 	const char *bin;
 	enum driver_type drv = get_driver_type(dut);
 	char *sigma_hapd_file = sigma_hapd_ctrl;
+	const char *ifname = get_hostapd_ifname(dut);
 
 	if (file_exists("hostapd_cli"))
 		bin = "./hostapd_cli";
@@ -634,10 +635,11 @@ static int run_hostapd_cli(struct sigma_dut *dut, char *buf)
 	}
 
 	if (sigma_hapd_file)
-		snprintf(command, sizeof(command), "%s -p %s %s",
-			 bin, sigma_hapd_file, buf);
+		snprintf(command, sizeof(command), "%s -p %s -i %s %s",
+			 bin, sigma_hapd_file, ifname, buf);
 	else
-		snprintf(command, sizeof(command), "%s %s", bin, buf);
+		snprintf(command, sizeof(command), "%s -i %s %s", bin, ifname,
+			 buf);
 	return run_system(dut, command);
 }
 
@@ -2153,6 +2155,88 @@ static enum sigma_cmd_result cmd_ap_set_wireless(struct sigma_dut *dut,
 	if (val)
 		dut->ap_ocvc = atoi(val);
 
+	val = get_param(cmd, "UnsolicitedProbeResp");
+	if (val) {
+		if (strcasecmp(val, "enable") == 0) {
+			dut->ap_unsolicited_proberesp = VALUE_ENABLED;
+		} else if (strcasecmp(val, "disable") == 0) {
+			dut->ap_unsolicited_proberesp = VALUE_DISABLED;
+		} else {
+			send_resp(dut, conn, SIGMA_INVALID,
+				  "errorCode,Unsupported unsolicited proberesp");
+			return STATUS_SENT_ERROR;
+		}
+	}
+
+	val = get_param(cmd, "Cadence_UnsolicitedProbeResp");
+	if (val)
+		dut->ap_cad_unsolicited_proberesp = atoi(val);
+
+	val = get_param(cmd, "ActiveInd_UnsolicitedProbeResp");
+	if (val) {
+		if (strcasecmp(val, "enable") == 0) {
+			dut->ap_activeind_proberesp = VALUE_ENABLED;
+		} else if (strcasecmp(val, "disable") == 0) {
+			dut->ap_activeind_proberesp = VALUE_DISABLED;
+		} else {
+			send_resp(dut, conn, SIGMA_INVALID,
+				  "errorCode,Unsupported active unsolicited proberesp");
+			return STATUS_SENT_ERROR;
+		}
+	}
+
+	val = get_param(cmd, "RSNXE");
+	if (val) {
+		if (strcasecmp(val, "exclude") == 0) {
+			dut->ap_6g_legacy_security = VALUE_ENABLED;
+		} else if (strcasecmp(val, "include") == 0) {
+			dut->ap_6g_legacy_security = VALUE_DISABLED;
+		} else {
+			send_resp(dut, conn, SIGMA_INVALID,
+				  "errorCode,Unsupported legacy security");
+			return STATUS_SENT_ERROR;
+		}
+	}
+
+	val = get_param(cmd, "FullBW_ULMUMIMO");
+	if (val) {
+		if (strcasecmp(val, "enable") == 0) {
+			dut->ap_fullbw_ulmumimo = VALUE_ENABLED;
+		} else if (strcasecmp(val, "disable") == 0) {
+			dut->ap_fullbw_ulmumimo = VALUE_DISABLED;
+		} else {
+			send_resp(dut, conn, SIGMA_INVALID,
+				  "errorCode,Unsupported full BW ulmumimo");
+			return STATUS_SENT_ERROR;
+		}
+	}
+
+	val = get_param(cmd, "TWTInfoFrameRx");
+	if (val) {
+		if (strcasecmp(val, "enable") == 0) {
+			dut->ap_twtinfoframerx = VALUE_ENABLED;
+		} else if (strcasecmp(val, "disable") == 0) {
+			dut->ap_twtinfoframerx = VALUE_DISABLED;
+		} else {
+			send_resp(dut, conn, SIGMA_INVALID,
+				  "errorCode,Unsupported twtinfoframerx");
+			return STATUS_SENT_ERROR;
+		}
+	}
+
+	val = get_param(cmd, "OMCtrl_ULMUDataDisableRx");
+	if (val) {
+		if (strcasecmp(val, "enable") == 0) {
+			dut->ap_ulmudata_disablerx = VALUE_ENABLED;
+		} else if (strcasecmp(val, "disable") == 0) {
+			dut->ap_ulmudata_disablerx = VALUE_DISABLED;
+		} else {
+			send_resp(dut, conn, SIGMA_INVALID,
+				  "errorCode,Unsupported ulmudatadisablerx");
+			return STATUS_SENT_ERROR;
+		}
+	}
+
 	return SUCCESS_SEND_STATUS;
 }
 
@@ -2437,6 +2521,11 @@ static enum sigma_cmd_result cmd_ap_set_security(struct sigma_dut *dut,
 				   wlan_tag == 2) {
 				dut->ap_tag_key_mgmt[wlan_tag - 2] =
 					AP2_WPA2_OWE;
+			} else if ((strcasecmp(val, "WPA2-EAP") == 0 ||
+				    strcasecmp(val, "WPA2-Ent") == 0) &&
+				   wlan_tag == 2) {
+				dut->ap_tag_key_mgmt[wlan_tag - 2] =
+					AP2_WPA2_EAP;
 			} else {
 				send_resp(dut, conn, SIGMA_INVALID,
 					  "errorCode,Unsupported KEYMGNT");
@@ -4664,6 +4753,9 @@ static int owrt_ap_config_vap(struct sigma_dut *dut)
 		owrt_ap_set_vap(dut, vap_count, "ocv", "1");
 	else if (dut->ap_ocvc == 0)
 		owrt_ap_set_vap(dut, vap_count, "ocv", "0");
+
+	if (dut->ap_6g_legacy_security == VALUE_ENABLED)
+		owrt_ap_set_vap(dut, vap_id, "en_6g_sec_comp", "0");
 
 	return 1;
 }
@@ -7160,6 +7252,53 @@ static void ath_ap_set_params(struct sigma_dut *dut)
 		 */
 		run_iwpriv(dut, ifname, "he_sr_enable 1");
 	}
+
+	if (dut->ap_unsolicited_proberesp == VALUE_ENABLED) {
+		run_system_wrapper(dut, "cfg80211tool %s bcast_prbrsp_en 1",
+				   ifname);
+		sleep(2);
+	} else if (dut->ap_unsolicited_proberesp == VALUE_DISABLED) {
+		run_system_wrapper(dut, "cfg80211tool %s bcast_prbrsp_en 0",
+				   ifname);
+	}
+
+	if (dut->ap_activeind_proberesp == VALUE_ENABLED)
+		run_system_wrapper(dut,
+				   "cfg80211tool %s rnr_unsolicited_prb_resp_en 1",
+				   basedev);
+	else if (dut->ap_activeind_proberesp == VALUE_DISABLED)
+		run_system_wrapper(dut,
+				   "cfg80211tool %s rnr_unsolicited_prb_resp_en 0",
+				   basedev);
+
+	if (dut->ap_cad_unsolicited_proberesp) {
+		run_system_wrapper(dut, "cfg80211tool %s bcast_prbrsp_en 1 %d",
+				   ifname,
+				   dut->ap_cad_unsolicited_proberesp);
+		sleep(2);
+	}
+
+	if (dut->ap_fullbw_ulmumimo == VALUE_ENABLED) {
+		run_system_wrapper(dut, "cfg80211tool %s he_ul_mimo 1", ifname);
+		run_system_wrapper(dut, "cfg80211tool %s he_full_bw_ulmumimo 1",
+				   ifname);
+	} else if (dut->ap_fullbw_ulmumimo == VALUE_DISABLED) {
+		run_system_wrapper(dut, "cfg80211tool %s he_ul_mimo 0", ifname);
+		run_system_wrapper(dut, "cfg80211tool %s he_full_bw_ulmumimo 0",
+				   ifname);
+	}
+
+	if (dut->ap_twtinfoframerx == VALUE_ENABLED &&
+	    dut->device_type == AP_testbed) {
+		/* Disable UL triggers for testbed AP */
+		run_system_wrapper(dut,
+				   "wifitool %s setUnitTestCmd 0x47 2 333 1",
+				   ifname);
+	}
+
+	if (dut->ap_ulmudata_disablerx == VALUE_ENABLED &&
+	    dut->device_type == AP_testbed)
+		run_iwpriv(dut, ifname, "he_ul_mu_data_dis_rx 1");
 }
 
 
@@ -8168,6 +8307,30 @@ static void set_second_ap_security_conf(FILE *file, struct sigma_dut *dut)
 		fprintf(file, "wpa_pairwise=%s\n",
 			hostapd_cipher_name(dut->ap_cipher));
 		fprintf(file, "wpa_passphrase=%s\n", dut->ap_tag_passphrase[0]);
+		break;
+	case AP2_WPA2_EAP:
+		fprintf(file, "ieee8021x=1\n");
+		fprintf(file, "wpa=2\n");
+		fprintf(file, "wpa_key_mgmt=WPA-EAP%s\n",
+			dut->ap_add_sha256 ? " WPA-EAP-SHA256" : "");
+		fprintf(file, "wpa_pairwise=CCMP\n");
+		if (dut->ap2_radius_port) {
+			fprintf(file, "auth_server_addr=%s\n",
+				dut->ap2_radius_ipaddr);
+			fprintf(file, "auth_server_port=%d\n",
+				dut->ap2_radius_port);
+			fprintf(file, "auth_server_shared_secret=%s\n",
+				dut->ap2_radius_password);
+		} else if (dut->ap_radius_port) {
+			fprintf(file, "auth_server_addr=%s\n",
+				dut->ap_radius_ipaddr);
+			fprintf(file, "auth_server_port=%d\n",
+				dut->ap_radius_port);
+			fprintf(file, "auth_server_shared_secret=%s\n",
+				dut->ap_radius_password);
+		} else
+			sigma_dut_print(dut, DUT_MSG_INFO,
+					"No RADIUS config for AP2");
 		break;
 	default:
 		fprintf(file, "wpa=1\n");
@@ -10450,6 +10613,14 @@ static enum sigma_cmd_result cmd_ap_reset_default(struct sigma_dut *dut,
 	dpp_mdns_stop(dut);
 	unlink("/tmp/dpp-rest-server.uri");
 	unlink("/tmp/dpp-rest-server.id");
+
+	dut->ap_cad_unsolicited_proberesp = 0;
+	dut->ap_unsolicited_proberesp = VALUE_NOT_SET;
+	dut->ap_activeind_proberesp = VALUE_NOT_SET;
+	dut->ap_6g_legacy_security = VALUE_NOT_SET;
+	dut->ap_fullbw_ulmumimo = VALUE_NOT_SET;
+	dut->ap_twtinfoframerx = VALUE_NOT_SET;
+	dut->ap_ulmudata_disablerx = VALUE_NOT_SET;
 
 	if (is_60g_sigma_dut(dut)) {
 		dut->ap_mode = AP_11ad;

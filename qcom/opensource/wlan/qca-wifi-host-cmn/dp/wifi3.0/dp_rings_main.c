@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -826,7 +826,7 @@ static inline bool dp_skip_rx_mon_ring_mask_set(struct dp_soc *soc)
 {
 	return !!(soc->cdp_soc.ol_ops->get_con_mode() !=
 		 QDF_GLOBAL_MONITOR_MODE &&
-		 !wlan_cfg_get_local_pkt_capture(soc->wlan_cfg_ctx));
+		 !dp_mon_mode_local_pkt_capture(soc));
 }
 #else
 static inline bool dp_skip_rx_mon_ring_mask_set(struct dp_soc *soc)
@@ -2510,6 +2510,75 @@ static void dp_peer_setup_get_reo_hash(struct dp_vdev *vdev,
 					lmac_peer_id_msb);
 }
 #endif /* IPA_OFFLOAD */
+#if defined WLAN_FEATURE_11BE_MLO && defined DP_MLO_LINK_STATS_SUPPORT
+
+static inline uint8_t
+dp_peer_get_local_link_id(struct dp_peer *peer, struct dp_txrx_peer *txrx_peer)
+{
+	struct dp_local_link_id_peer_map *ll_id_peer_map =
+						&txrx_peer->ll_id_peer_map[0];
+	int i;
+
+	/*
+	 * Search for the peer entry in the
+	 * local_link_id to peer mac_addr mapping table
+	 */
+	for (i = 0; i < DP_MAX_MLO_LINKS; i++) {
+		if (ll_id_peer_map[i].in_use &&
+		    !qdf_mem_cmp(&peer->mac_addr.raw[0],
+				 &ll_id_peer_map[i].mac_addr.raw[0],
+				 QDF_MAC_ADDR_SIZE))
+			return ll_id_peer_map[i].local_link_id + 1;
+	}
+
+	/*
+	 * Create new entry for peer in the
+	 * local_link_id to peer mac_addr mapping table
+	 */
+	for (i = 0; i < DP_MAX_MLO_LINKS; i++) {
+		if (ll_id_peer_map[i].in_use)
+			continue;
+
+		ll_id_peer_map[i].in_use = 1;
+		ll_id_peer_map[i].local_link_id = i;
+		qdf_mem_copy(&ll_id_peer_map[i].mac_addr.raw[0],
+			     &peer->mac_addr.raw[0], QDF_MAC_ADDR_SIZE);
+		return ll_id_peer_map[i].local_link_id + 1;
+	}
+
+	/* We should not hit this case..!! Assert ?? */
+	return 0;
+}
+
+/**
+ *  dp_peer_set_local_link_id() - Set local link id
+ *  @peer: dp peer handle
+ *
+ *  Return: None
+ */
+static inline void
+dp_peer_set_local_link_id(struct dp_peer *peer)
+{
+	struct dp_txrx_peer *txrx_peer;
+
+	if (!IS_MLO_DP_LINK_PEER(peer))
+		return;
+
+	txrx_peer = dp_get_txrx_peer(peer);
+	if (txrx_peer)
+		peer->local_link_id = dp_peer_get_local_link_id(peer,
+								txrx_peer);
+
+	dp_info("Peer " QDF_MAC_ADDR_FMT " txrx_peer %pK local_link_id %d",
+		QDF_MAC_ADDR_REF(peer->mac_addr.raw), txrx_peer,
+		peer->local_link_id);
+}
+#else
+static inline void
+dp_peer_set_local_link_id(struct dp_peer *peer)
+{
+}
+#endif
 
 /**
  * dp_peer_setup_wifi3() - initialize the peer
@@ -2617,9 +2686,11 @@ dp_peer_setup_wifi3(struct cdp_soc_t *soc_hdl, uint8_t vdev_id,
 					dp_peer_err("MLD peer null. Primary link peer:%pK", peer);
 			}
 		} else {
-			dp_peer_rx_init(pdev, peer);
+			dp_peer_rx_init_wrapper(pdev, peer, setup_info);
 		}
 	}
+
+	dp_peer_set_local_link_id(peer);
 
 	if (!IS_MLO_DP_MLD_PEER(peer))
 		dp_peer_ppdu_delayed_ba_init(peer);
@@ -2793,13 +2864,14 @@ void dp_update_soft_irq_limits(struct dp_soc *soc, uint32_t tx_limit,
  * READ NOC error when UMAC is in low power state. MCC does not have
  * device force wake working yet.
  *
- * Return: none
+ * Return: rings are empty
  */
-void dp_display_srng_info(struct cdp_soc_t *soc_hdl)
+bool dp_display_srng_info(struct cdp_soc_t *soc_hdl)
 {
 	struct dp_soc *soc = cdp_soc_t_to_dp_soc(soc_hdl);
 	hal_soc_handle_t hal_soc = soc->hal_soc;
 	uint32_t hp, tp, i;
+	bool ret = true;
 
 	dp_info("SRNG HP-TP data:");
 	for (i = 0; i < soc->num_tcl_data_rings; i++) {
@@ -2819,6 +2891,9 @@ void dp_display_srng_info(struct cdp_soc_t *soc_hdl)
 	for (i = 0; i < soc->num_reo_dest_rings; i++) {
 		hal_get_sw_hptp(hal_soc, soc->reo_dest_ring[i].hal_srng,
 				&tp, &hp);
+		if (hp != tp)
+			ret = false;
+
 		dp_info("REO DST ring[%d]: hp=0x%x, tp=0x%x", i, hp, tp);
 	}
 
@@ -2830,6 +2905,8 @@ void dp_display_srng_info(struct cdp_soc_t *soc_hdl)
 
 	hal_get_sw_hptp(hal_soc, soc->wbm_desc_rel_ring.hal_srng, &tp, &hp);
 	dp_info("WBM desc release ring: hp=0x%x, tp=0x%x", hp, tp);
+
+	return ret;
 }
 
 /**
@@ -2880,7 +2957,7 @@ QDF_STATUS dp_set_vdev_pcp_tid_map_wifi3(struct cdp_soc_t *soc_hdl,
 }
 
 #if defined(FEATURE_RUNTIME_PM) || defined(DP_POWER_SAVE)
-void dp_drain_txrx(struct cdp_soc_t *soc_handle)
+QDF_STATUS dp_drain_txrx(struct cdp_soc_t *soc_handle, uint8_t rx_only)
 {
 	struct dp_soc *soc = (struct dp_soc *)soc_handle;
 	uint32_t cur_tx_limit, cur_rx_limit;
@@ -2888,6 +2965,7 @@ void dp_drain_txrx(struct cdp_soc_t *soc_handle)
 	uint32_t val;
 	int i;
 	int cpu = dp_srng_get_cpu();
+	QDF_STATUS status = QDF_STATUS_SUCCESS;
 
 	cur_tx_limit = soc->wlan_cfg_ctx->tx_comp_loop_pkt_limit;
 	cur_rx_limit = soc->wlan_cfg_ctx->rx_reap_loop_pkt_limit;
@@ -2900,16 +2978,27 @@ void dp_drain_txrx(struct cdp_soc_t *soc_handle)
 	 */
 	dp_update_soft_irq_limits(soc, budget, budget);
 
-	for (i = 0; i < wlan_cfg_get_num_contexts(soc->wlan_cfg_ctx); i++)
+	for (i = 0; i < wlan_cfg_get_num_contexts(soc->wlan_cfg_ctx); i++) {
+		if (rx_only && !soc->intr_ctx[i].rx_ring_mask)
+			continue;
 		soc->arch_ops.dp_service_srngs(&soc->intr_ctx[i], budget, cpu);
+	}
 
 	dp_update_soft_irq_limits(soc, cur_tx_limit, cur_rx_limit);
+
+	status = hif_try_complete_dp_tasks(soc->hif_handle);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		dp_err("Failed to complete DP tasks");
+		return status;
+	}
 
 	/* Do a dummy read at offset 0; this will ensure all
 	 * pendings writes(HP/TP) are flushed before read returns.
 	 */
 	val = HAL_REG_READ((struct hal_soc *)soc->hal_soc, 0);
 	dp_debug("Register value at offset 0: %u", val);
+
+	return status;
 }
 #endif
 

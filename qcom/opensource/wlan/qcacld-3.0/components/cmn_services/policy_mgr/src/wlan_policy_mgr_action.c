@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -44,6 +44,7 @@
 #include "wlan_mlo_mgr_sta.h"
 #include "wlan_mlo_mgr_link_switch.h"
 #include "wlan_psoc_mlme_api.h"
+#include "wlan_policy_mgr_ll_sap.h"
 
 enum policy_mgr_conc_next_action (*policy_mgr_get_current_pref_hw_mode_ptr)
 	(struct wlan_objmgr_psoc *psoc);
@@ -264,7 +265,8 @@ policy_mgr_get_sap_bw(struct wlan_objmgr_psoc *psoc, enum phy_ch_width *bw)
 
 	if (policy_mgr_get_mode_specific_conn_info(psoc, &freq_list[0],
 						   &vdev_id_list[0],
-						   PM_SAP_MODE) != 1)
+						   PM_SAP_MODE) != 1 ||
+	    !WLAN_REG_IS_6GHZ_CHAN_FREQ(freq_list[0]))
 		return QDF_STATUS_E_NOSUPPORT;
 
 	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc, vdev_id_list[0],
@@ -283,6 +285,7 @@ policy_mgr_get_sap_bw(struct wlan_objmgr_psoc *psoc, enum phy_ch_width *bw)
 /**
  * policy_mgr_get_sap_ch_width_update_action() - get SAP ch_width update action
  * @psoc: Pointer to psoc
+ * @vdev_id: Vdev id of the caller
  * @ch_freq: channel frequency of new connection
  * @next_action: next action to happen in order to update bandwidth
  * @reason: Bandwidth upgrade/downgrade reason
@@ -294,12 +297,12 @@ policy_mgr_get_sap_bw(struct wlan_objmgr_psoc *psoc, enum phy_ch_width *bw)
  */
 static void
 policy_mgr_get_sap_ch_width_update_action(struct wlan_objmgr_psoc *psoc,
-				uint32_t ch_freq,
+				uint8_t vdev_id, qdf_freq_t ch_freq,
 				enum policy_mgr_conc_next_action *next_action,
 				enum policy_mgr_conn_update_reason *reason)
 {
 	enum phy_ch_width cur_bw;
-	uint32_t freq_list[MAX_NUMBER_OF_CONC_CONNECTIONS + 1];
+	qdf_freq_t freq_list[MAX_NUMBER_OF_CONC_CONNECTIONS + 1];
 	uint8_t vdev_id_list[MAX_NUMBER_OF_CONC_CONNECTIONS + 1];
 	bool eht_capab = false;
 
@@ -317,12 +320,13 @@ policy_mgr_get_sap_ch_width_update_action(struct wlan_objmgr_psoc *psoc,
 
 	policy_mgr_get_mode_specific_conn_info(psoc, &freq_list[0],
 					       &vdev_id_list[0], PM_SAP_MODE);
-	if (cur_bw == CH_WIDTH_320MHZ &&
-	    ch_freq && policy_mgr_is_conn_lead_to_dbs_sbs(psoc, ch_freq))
+	if (cur_bw == CH_WIDTH_320MHZ && ch_freq &&
+	    policy_mgr_is_conn_lead_to_dbs_sbs(psoc, vdev_id, ch_freq))
 		*next_action = PM_DOWNGRADE_BW;
 	else if (cur_bw == CH_WIDTH_160MHZ &&
 		 !ch_freq &&
-		 !policy_mgr_is_conn_lead_to_dbs_sbs(psoc, freq_list[0]) &&
+		 !policy_mgr_is_conn_lead_to_dbs_sbs(psoc,
+					vdev_id_list[0], freq_list[0]) &&
 		 (reason &&
 		  (*reason == POLICY_MGR_UPDATE_REASON_TIMER_START ||
 		   *reason == POLICY_MGR_UPDATE_REASON_OPPORTUNISTIC)))
@@ -342,7 +346,9 @@ enum policy_mgr_conc_next_action policy_mgr_need_opportunistic_upgrade(
 	struct policy_mgr_psoc_priv_obj *pm_ctx;
 
 	if (policy_mgr_is_hwmode_offload_enabled(psoc)) {
-		policy_mgr_get_sap_ch_width_update_action(psoc, 0, &upgrade,
+		policy_mgr_get_sap_ch_width_update_action(psoc,
+							  WLAN_INVALID_VDEV_ID,
+							  0, &upgrade,
 							  reason);
 		return upgrade;
 	}
@@ -536,7 +542,8 @@ QDF_STATUS policy_mgr_update_connection_info(struct wlan_objmgr_psoc *psoc,
 	else if (policy_mgr_update_indoor_concurrency(psoc, vdev_id, cur_freq,
 						SWITCH_WITHOUT_CONCURRENCY))
 		wlan_reg_recompute_current_chan_list(psoc, pm_ctx->pdev);
-	else if (wlan_reg_get_keep_6ghz_sta_cli_connection(pm_ctx->pdev))
+	else if (wlan_reg_get_keep_6ghz_sta_cli_connection(pm_ctx->pdev) &&
+		 (mode == PM_STA_MODE || mode == PM_P2P_CLIENT_MODE))
 		wlan_reg_recompute_current_chan_list(psoc, pm_ctx->pdev);
 
 	ml_nlink_conn_change_notify(
@@ -953,21 +960,20 @@ policy_mgr_get_third_conn_action_table(
 
 bool
 policy_mgr_is_conn_lead_to_dbs_sbs(struct wlan_objmgr_psoc *psoc,
-				   uint32_t freq)
+				   uint8_t vdev_id, qdf_freq_t freq)
 {
 	struct connection_info info[MAX_NUMBER_OF_CONC_CONNECTIONS] = {0};
 	uint32_t connection_count, i;
 
 	connection_count = policy_mgr_get_connection_info(psoc, info);
-
-	if (connection_count == 1)
-		return false;
-
-	for (i = 0; i < connection_count; i++)
+	for (i = 0; i < connection_count; i++) {
+		/* Ignore the vdev id for which freq is passed */
+		if (vdev_id == info[i].vdev_id)
+			continue;
 		if (!policy_mgr_2_freq_always_on_same_mac(psoc, freq,
 							  info[i].ch_freq))
 			return true;
-
+	}
 	return false;
 }
 
@@ -994,7 +1000,8 @@ policy_mgr_get_next_action(struct wlan_objmgr_psoc *psoc,
 
 	if (policy_mgr_is_hwmode_offload_enabled(psoc)) {
 		*next_action = PM_NOP;
-		policy_mgr_get_sap_ch_width_update_action(psoc, ch_freq,
+		policy_mgr_get_sap_ch_width_update_action(psoc, session_id,
+							  ch_freq,
 							  next_action, &reason);
 		return QDF_STATUS_SUCCESS;
 	}
@@ -1113,11 +1120,12 @@ policy_mgr_is_hw_mode_change_required(struct wlan_objmgr_psoc *psoc,
 
 static bool
 policy_mgr_is_ch_width_downgrade_required(struct wlan_objmgr_psoc *psoc,
+					  uint8_t vdev_id,
 					  struct scan_cache_entry *entry,
 					  qdf_list_t *scan_list)
 
 {
-	if (policy_mgr_is_conn_lead_to_dbs_sbs(psoc,
+	if (policy_mgr_is_conn_lead_to_dbs_sbs(psoc, vdev_id,
 					       entry->channel.chan_freq) ||
 	    wlan_cm_bss_mlo_type(psoc, entry, scan_list))
 		return true;
@@ -1136,6 +1144,12 @@ policy_mgr_check_for_hw_mode_change(struct wlan_objmgr_psoc *psoc,
 	struct scan_cache_entry *entry;
 	bool eht_capab =  false, check_sap_bw_downgrade = false;
 	enum phy_ch_width cur_bw = CH_WIDTH_INVALID;
+	struct wlan_objmgr_vdev *vdev;
+
+	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc, vdev_id,
+						    WLAN_POLICY_MGR_ID);
+	if (!vdev)
+		goto end;
 
 	if (policy_mgr_is_hwmode_offload_enabled(psoc)) {
 		/*
@@ -1147,7 +1161,8 @@ policy_mgr_check_for_hw_mode_change(struct wlan_objmgr_psoc *psoc,
 		if (eht_capab &&
 		    QDF_IS_STATUS_SUCCESS(policy_mgr_get_sap_bw(psoc,
 								&cur_bw)) &&
-						cur_bw == CH_WIDTH_320MHZ)
+						cur_bw == CH_WIDTH_320MHZ &&
+		    !mlo_mgr_is_link_switch_in_progress(vdev))
 			check_sap_bw_downgrade = true;
 		else
 			goto end;
@@ -1192,7 +1207,8 @@ ch_width_update:
 
 		if (policy_mgr_is_hw_mode_change_required(psoc, ch_freq,
 							  vdev_id) ||
-		    policy_mgr_is_ch_width_downgrade_required(psoc, entry,
+		    policy_mgr_is_ch_width_downgrade_required(psoc, vdev_id,
+							      entry,
 							      scan_list)) {
 			policy_mgr_debug("Scan list has BSS of freq %d hw mode/SAP ch_width:%d update required",
 					 ch_freq, cur_bw);
@@ -1205,6 +1221,9 @@ ch_width_update:
 	}
 
 end:
+	if (vdev)
+		wlan_objmgr_vdev_release_ref(vdev, WLAN_POLICY_MGR_ID);
+
 	return ch_freq;
 }
 
@@ -1217,7 +1236,6 @@ policy_mgr_change_hw_mode_sta_connect(struct wlan_objmgr_psoc *psoc,
 	uint32_t ch_freq;
 
 	ch_freq = policy_mgr_check_for_hw_mode_change(psoc, scan_list, vdev_id);
-
 	if (!ch_freq)
 		return QDF_STATUS_E_ALREADY;
 
@@ -1853,8 +1871,7 @@ bool policy_mgr_is_sap_restart_required_after_sta_disconnect(
 	QDF_STATUS status;
 	uint32_t sta_gc_present = 0;
 	qdf_freq_t user_config_freq = 0;
-	tQDF_MCC_TO_SCC_SWITCH_MODE cc_mode =
-				policy_mgr_get_mcc_to_scc_switch_mode(psoc);
+	enum reg_wifi_band user_band, op_band;
 
 	if (intf_ch_freq)
 		*intf_ch_freq = 0;
@@ -1948,26 +1965,14 @@ bool policy_mgr_is_sap_restart_required_after_sta_disconnect(
 		/*
 		 * STA got disconnected & SAP has previously moved to 2.4 GHz
 		 * due to concurrency, then move SAP back to user configured
-		 * frequency.
-		 * if SCC to MCC switch mode is
-		 * QDF_MCC_TO_SCC_SWITCH_WITH_FAVORITE_CHANNEL, then don't move
-		 * SAP to user configured frequency whenever standalone SAP is
-		 * currently not on the user configured frequency.
-		 * Else move the SAP only when SAP is on 2.4 GHz band and user
-		 * configured frequency is on any other bands.
-		 * And for QDF_MCC_TO_SCC_SWITCH_WITH_FAVORITE_CHANNEL, if GO
-		 * is on 5/6 GHz, SAP is not allowed to move back to 5/6 GHz.
-		 * If GO is not present on 5/6 GHz, SAP need to moved to
-		 * user configured frequency.
+		 * frequency if the user configured band is better than
+		 * the current operating band.
 		 */
+		op_band = wlan_reg_freq_to_band(op_ch_freq_list[i]);
+		user_band = wlan_reg_freq_to_band(user_config_freq);
+
 		if (!sta_gc_present && user_config_freq &&
-		    cc_mode == QDF_MCC_TO_SCC_SWITCH_WITH_FAVORITE_CHANNEL) {
-			policy_mgr_debug("Don't move sap to user configured freq: %d",
-					 user_config_freq);
-			break;
-		} else if (!sta_gc_present && user_config_freq &&
-			   WLAN_REG_IS_24GHZ_CH_FREQ(op_ch_freq_list[i]) &&
-			   !WLAN_REG_IS_24GHZ_CH_FREQ(user_config_freq)) {
+		    op_band < user_band) {
 			curr_sap_freq = op_ch_freq_list[i];
 			policy_mgr_debug("Move sap to user configured freq: %d",
 					 user_config_freq);
@@ -2832,7 +2837,7 @@ static void __policy_mgr_check_sta_ap_concurrent_ch_intf(
 				wlan_hdd_get_channel_for_sap_restart
 					(pm_ctx->psoc, vdev_id[i], &ch_freq);
 			if (status == QDF_STATUS_SUCCESS) {
-				policy_mgr_debug("SAP vdev id %d restarts due to MCC->SCC switch, old ch freq :%d new ch freq: %d",
+				policy_mgr_debug("SAP vdev id %d restarts, old ch freq :%d new ch freq: %d",
 						 vdev_id[i],
 						 op_ch_freq_list[i], ch_freq);
 				break;
@@ -3148,6 +3153,12 @@ void policy_mgr_check_concurrent_intf_and_restart_sap(
 			"No action taken at check_concurrent_intf_and_restart_sap");
 		return;
 	}
+
+	if (policy_mgr_is_ll_lt_sap_restart_required(psoc)) {
+		restart_sap = true;
+		goto sap_restart;
+	}
+
 	/*
 	 * If STA+SAP sessions are on DFS channel and STA+SAP SCC is
 	 * enabled on DFS channel then move the SAP out of DFS channel

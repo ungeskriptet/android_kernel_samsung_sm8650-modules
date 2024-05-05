@@ -53,8 +53,8 @@ struct index_eht_data_rate_type {
  * @wmi_handle: pointer to WMI handle
  * @cfg: pointer to WMA target services
  *
- * Based on WMI SERVICES information and CFG_ENABLE_11BE INI, enable 11be
- * support and set DOT11BE bit in feature caps bitmap.
+ * Based on WMI SERVICES information, enable 11be support and set DOT11BE
+ * bit in feature caps bitmap.
  *
  * Return: None
  */

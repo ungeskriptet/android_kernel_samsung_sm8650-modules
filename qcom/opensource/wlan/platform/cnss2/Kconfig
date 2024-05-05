@@ -179,9 +179,3 @@ config CNSS2_ENUM_WITH_LOW_SPEED
 	help
 	  Set link target speed to Gen1 before enum, and then restore default
 	  RC speed to re-establish link speed. For Genoa chip, needn't restore.
-
-config SEC_SS_CNSS_FEATURE_SYSFS
-	bool "Enable CNSS SS Feature"
-	depends on CNSS2
-	help
-	  If enabled, SS specific feature will be operated.

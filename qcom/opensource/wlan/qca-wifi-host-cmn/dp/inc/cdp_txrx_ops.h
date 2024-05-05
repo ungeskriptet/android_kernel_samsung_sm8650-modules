@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -40,6 +40,10 @@
 #else
 #include <qdf_ipa.h>
 #endif
+#endif
+#ifdef WLAN_SUPPORT_DPDK
+#include <cfgmgr_api_if.h>
+#include <dpdk_wlan_msg_types.h>
 #endif
 
 /*
@@ -713,7 +717,7 @@ struct cdp_cmn_ops {
 	QDF_STATUS (*set_wds_ext_peer_bit)(ol_txrx_soc_handle soc,
 					   uint8_t *mac);
 #endif /* QCA_SUPPORT_WDS_EXTENDED */
-	void (*txrx_drain)(ol_txrx_soc_handle soc);
+	QDF_STATUS (*txrx_drain)(ol_txrx_soc_handle soc, uint8_t rx_only);
 	int (*get_free_desc_poolsize)(struct cdp_soc_t *soc);
 #ifdef WLAN_SYSFS_DP_STATS
 	QDF_STATUS (*txrx_sysfs_fill_stats)(ol_txrx_soc_handle soc,
@@ -746,8 +750,20 @@ struct cdp_cmn_ops {
 	void (*txrx_get_tqm_offset)(struct cdp_soc_t *soc_hdl, uint64_t *value);
 	uint64_t (*get_fst_cmem_base)(struct cdp_soc_t *soc_hdl, uint64_t size);
 #ifdef WLAN_SUPPORT_DPDK
-	void (*dpdk_get_ring_info)(struct cdp_soc_t *soc_hdl,
-				   qdf_uio_info_t *uio_info);
+	uint8_t (*dpdk_get_ring_info)(struct cdp_soc_t *soc_hdl,
+				      qdf_uio_info_t *uio_info);
+	int (*cfgmgr_get_soc_info)(struct cdp_soc_t *soc_hdl, uint8_t soc_id,
+				   struct dpdk_wlan_soc_info_event *ev_buf);
+	int (*cfgmgr_get_vdev_info)(struct cdp_soc_t *soc_hdl, uint8_t soc_id,
+				    struct dpdk_wlan_vdev_info_event *ev_buf);
+	int (*cfgmgr_get_peer_info)(struct cdp_soc_t *soc_hdl, uint8_t soc_id,
+				    struct dpdk_wlan_peer_info *ev_buf);
+	int (*cfgmgr_get_vdev_create_evt_info)(
+				struct cdp_soc_t *soc_hdl, uint8_t vdev_id,
+				struct dpdk_wlan_vdev_create_info *ev_buf);
+	int (*cfgmgr_get_peer_create_evt_info)(
+				struct cdp_soc_t *soc_hdl, uint16_t peer_id,
+				struct dpdk_wlan_peer_create_info *ev_buf);
 #endif
 };
 
@@ -1509,6 +1525,10 @@ struct ol_if_ops {
 				       uint8_t ba_window_size_valid,
 				       uint16_t ba_window_size);
 	QDF_STATUS
+	(*peer_multi_rx_reorder_queue_setup)(struct cdp_ctrl_objmgr_psoc *ctrl_psoc,
+					     uint8_t pdev_id,
+					     struct multi_rx_reorder_queue_setup_params *tid_params);
+	QDF_STATUS
 	(*peer_rx_reorder_queue_remove)(struct cdp_ctrl_objmgr_psoc *ctrl_psoc,
 					uint8_t pdev_id,
 					uint8_t vdev_id, uint8_t *peer_macaddr,
@@ -1900,7 +1920,7 @@ struct cdp_misc_ops {
 	QDF_STATUS (*set_swlm_enable)(struct cdp_soc_t *soc_hdl,
 				      uint8_t val);
 	uint8_t (*is_swlm_enabled)(struct cdp_soc_t *soc_hdl);
-	void (*display_txrx_hw_info)(struct cdp_soc_t *soc_hdl);
+	bool (*display_txrx_hw_info)(struct cdp_soc_t *soc_hdl);
 	uint32_t (*get_tx_rings_grp_bitmap)(struct cdp_soc_t *soc_hdl);
 #ifdef WLAN_FEATURE_PEER_TXQ_FLUSH_CONF
 	int (*set_peer_txq_flush_config)(struct cdp_soc_t *soc_hdl,
@@ -1982,7 +2002,7 @@ struct cdp_peer_ops {
 	QDF_STATUS (*register_ocb_peer)(uint8_t *mac_addr);
 	uint8_t * (*peer_get_peer_mac_addr)(void *peer);
 	int (*get_peer_state)(struct cdp_soc_t *soc, uint8_t vdev_id,
-			      uint8_t *peer_mac);
+			      uint8_t *peer_mac, bool slowpath);
 	struct cdp_vdev * (*get_vdev_for_peer)(void *peer);
 	int16_t (*update_ibss_add_peer_num_of_vdev)(struct cdp_soc_t *soc,
 						    uint8_t vdev_id,
@@ -2506,6 +2526,16 @@ struct cdp_sawf_ops {
 				uint8_t svc_id, uint8_t direction,
 				uint8_t start_or_stop, uint8_t *peer_mac,
 				uint16_t peer_id);
+#endif
+#ifdef WLAN_FEATURE_11BE_MLO_3_LINK_TX
+	uint16_t
+	(*get_peer_msduq)(struct net_device *netdev, uint8_t *dest_mac,
+			  uint32_t dscp_pcp, bool pcp);
+	QDF_STATUS
+	(*sawf_3_link_peer_flow_count)(struct cdp_soc_t *hdl,
+				       uint8_t *mac_addr,
+				       uint16_t peer_id,
+				       uint32_t mark_metadata);
 #endif
 };
 #endif

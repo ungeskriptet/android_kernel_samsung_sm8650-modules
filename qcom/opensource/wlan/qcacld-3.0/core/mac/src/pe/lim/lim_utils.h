@@ -107,7 +107,9 @@
 /* To check if HT 20mhz detection bit set */
 #define OBSS_DETECTION_IS_HT_20MHZ(_m) ((_m) & OBSS_DETECTION_HT_20MHZ_BIT_MASK)
 
+#define MAX_WAIT_FOR_BCN_TX_COMPLETE_FOR_LL_SAP 500
 #define MAX_WAIT_FOR_BCN_TX_COMPLETE 4000
+
 #define MAX_WAKELOCK_FOR_CSA         5000
 #define MAX_WAIT_FOR_CH_WIDTH_UPDATE_COMPLETE 200
 
@@ -3232,11 +3234,13 @@ uint8_t lim_get_vht_ch_width(tDot11fIEVHTCaps *vht_cap,
  *
  * @mac_ctx:    Pointer to Global MAC structure
  * @pe_session: Pointer to session
+ * @bss_desc: Pointer to bss description
  *
  * Return: TPC status
  */
 bool
-lim_set_tpc_power(struct mac_context *mac_ctx, struct pe_session *session);
+lim_set_tpc_power(struct mac_context *mac_ctx, struct pe_session *session,
+		  struct bss_description *bss_desc);
 
 /**
  * lim_update_tx_power() - Function to update the TX power for
@@ -3267,6 +3271,23 @@ bool
 lim_skip_tpc_update_for_sta(struct mac_context *mac,
 			    struct pe_session *sta_session,
 			    struct pe_session *sap_session);
+
+#ifdef FEATURE_WLAN_GC_SKIP_JOIN
+static inline bool
+lim_connect_skip_join_for_gc(struct pe_session *pe_session)
+{
+	if (pe_session->opmode == QDF_P2P_CLIENT_MODE)
+		return true;
+	else
+		return false;
+}
+#else
+static inline bool
+lim_connect_skip_join_for_gc(struct pe_session *pe_session)
+{
+	return false;
+}
+#endif
 
 /**
  * lim_get_concurrent_session() - Function to get the concurrent session pointer
@@ -3359,4 +3380,25 @@ lim_get_connected_chan_for_mode(struct wlan_objmgr_psoc *psoc,
  */
 enum phy_ch_width
 lim_convert_vht_chwidth_to_phy_chwidth(uint8_t ch_width, bool is_40);
+
+/*
+ * lim_cmp_ssid() - Compare two SSIDs.
+ * @ssid: first ssid
+ * @pe_session: pointer to session
+ *
+ * Return: qdf_mem_cmp of ssids
+ */
+uint32_t lim_cmp_ssid(tSirMacSSid *ssid, struct pe_session *pe_session);
+
+/*
+ * lim_configure_fd_for_existing_6ghz_sap() - Based on the concurrent
+ * legacy SAP interface UP/DOWN, configure the FD for the 6 GHz SAPs.
+ * @session: pointer to pe_session
+ * @is_sap_starting: true if SAP is starting, false if SAP is stopping
+ *
+ * Return: None
+ */
+void
+lim_configure_fd_for_existing_6ghz_sap(struct pe_session *session,
+				       bool is_sap_starting);
 #endif /* __LIM_UTILS_H */

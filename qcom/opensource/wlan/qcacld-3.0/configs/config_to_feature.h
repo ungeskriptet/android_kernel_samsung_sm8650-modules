@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -278,13 +278,7 @@
 #define WMI_DBR_SUPPORT (1)
 #endif
 
-#ifndef CONFIG_CNSS_QCA6750
-#ifdef CONFIG_DIRECT_BUF_RX_ENABLE
-#define DBR_MULTI_SRNG_ENABLE (1)
-#endif
-#endif
-
-#ifndef CONFIG_CNSS_WCN6450
+#if !defined(CONFIG_CNSS_QCA6750) && !defined(CONFIG_CNSS_WCN6450)
 #ifdef CONFIG_DIRECT_BUF_RX_ENABLE
 #define DBR_MULTI_SRNG_ENABLE (1)
 #endif
@@ -1243,6 +1237,10 @@
 #define FEATURE_WLAN_STA_4ADDR_SCHEME (1)
 #endif
 
+#ifdef CONFIG_FEATURE_WLAN_GC_SKIP_JOIN
+#define FEATURE_WLAN_GC_SKIP_JOIN (1)
+#endif
+
 #ifdef CONFIG_MDM_PLATFORM
 #define MDM_PLATFORM (1)
 #endif
@@ -1843,6 +1841,12 @@
 #endif
 
 #ifdef CONFIG_WLAN_FEATURE_11BE_MLO
+#ifdef CONFIG_WLAN_FEATURE_PEER_TRANS_HIST
+#define WLAN_FEATURE_PEER_TRANS_HIST (1)
+#endif
+#endif
+
+#ifdef CONFIG_WLAN_FEATURE_11BE_MLO
 #define WLAN_SUPPORT_11BE_D3_0 (1)
 #endif
 
@@ -1908,10 +1912,6 @@
 
 #ifdef CONFIG_WLAN_FEATURE_NO_SAP_NAN_CONCURRENCY
 #define WLAN_FEATURE_NO_SAP_NAN_CONCURRENCY (1)
-#endif
-
-#ifdef CONFIG_WLAN_FEATURE_STA_SAP_P2P_CONCURRENCY
-#define WLAN_FEATURE_STA_SAP_P2P_CONCURRENCY (1)
 #endif
 
 #ifdef CONFIG_VERBOSE_DEBUG
@@ -2961,31 +2961,12 @@
 #define DP_RX_MSDU_DONE_FAIL_HISTORY (1)
 #endif
 
-/* SAMSUNG Feature */
-#ifdef CONFIG_WLAN_SAMSUNG_FEATURE
-#define CONFIG_SEC (1)
-#define SEC_READ_MACADDR_SYSFS (1)
-#define SEC_CONFIG_PSM_SYSFS (1)
-//#define SEC_CONFIG_POWER_BACKOFF (1)
-#define SEC_WRITE_VERSION_IN_SYSFS (1)
-#define SEC_WRITE_SOFTAP_INFO_IN_SYSFS (1)
-//#define SEC_DUMP_IN_PROGRESS_IN_SYSFS (1)
-#define SEC_CONFIG_TWT (1)
-
-#ifdef CONNECTION_ROAMING_CFG
-#undef CONNECTION_ROAMING_CFG
+#ifdef CONFIG_DP_RX_PEEK_MSDU_DONE_WAR
+#define DP_RX_PEEK_MSDU_DONE_WAR (1)
 #endif
-#define CONNECTION_ROAMING_CFG (1)
 
-#ifdef WLAN_FEATURE_NO_SAP_NAN_CONCURRENCY
-#undef WLAN_FEATURE_NO_SAP_NAN_CONCURRENCY
+#ifdef CONFIG_QDF_MAX_NO_OF_SAP_MODE
+#define QDF_MAX_NO_OF_SAP_MODE CONFIG_QDF_MAX_NO_OF_SAP_MODE
 #endif
-#define WLAN_FEATURE_NO_SAP_NAN_CONCURRENCY (1)
-
-#ifdef WLAN_FEATURE_NO_P2P_CONCURRENCY
-#undef WLAN_FEATURE_NO_P2P_CONCURRENCY
-#endif
-#define WLAN_FEATURE_NO_P2P_CONCURRENCY (1)
-#endif /* CONFIG_WLAN_SAMSUNG_FEATURE */
 
 #endif /* CONFIG_TO_FEATURE_H */

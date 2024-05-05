@@ -12,6 +12,9 @@
 #include <signal.h>
 #include <netinet/tcp.h>
 #endif /* __linux__ */
+#ifdef ANDROID_MDNS
+#include <dlfcn.h>
+#endif /* ANDROID_MDNS */
 #include "wpa_ctrl.h"
 #include "wpa_helpers.h"
 #include "miracast.h"
@@ -588,8 +591,12 @@ static void handle_term(int sig)
 {
 	struct sigma_dut *dut = &sigma_dut;
 
+	printf("handle_term(sig=%d)\n", sig);
 	if (dut->sta_2g_started || dut->sta_5g_started)
 		stop_sta_mode(dut);
+	if (dut->hostapd_running && dut->use_hostapd_pid_file)
+		kill_hostapd_process_pid(dut);
+
 	stop_loop = 1;
 	stop_event_thread();
 	printf("sigma_dut terminating\n");
@@ -834,6 +841,26 @@ static int get_nl80211_config_enable_option(struct sigma_dut *dut)
 }
 
 
+static void set_host_name(struct sigma_dut *dut)
+{
+	FILE *f;
+	size_t len;
+
+	strlcpy(dut->host_name, "no_name", sizeof(dut->host_name));
+	f = popen("hostname", "r");
+	if (!f)
+		return;
+
+	len = fread(dut->host_name, 1, sizeof(dut->host_name) - 1, f);
+	pclose(f);
+
+	if (len == 0)
+		return;
+
+	dut->host_name[len - 1] = '\0';
+}
+
+
 static void set_defaults(struct sigma_dut *dut)
 {
 	dut->debug_level = DUT_MSG_INFO;
@@ -861,6 +888,7 @@ static void set_defaults(struct sigma_dut *dut)
 	dut->dscp_use_iptables = 1;
 #endif /* ANDROID */
 	dut->autoconnect_default = 1;
+	set_host_name(dut);
 }
 
 
@@ -908,6 +936,12 @@ static void deinit_sigma_dut(struct sigma_dut *dut)
 	dut->station_ifname_5g = NULL;
 	stop_dscp_policy_mon_thread(dut);
 	free_dscp_policy_table(dut);
+#ifdef ANDROID_MDNS
+	if (dut->mdnssd_so) {
+		dlclose(dut->mdnssd_so);
+		dut->mdnssd_so = NULL;
+	}
+#endif /* ANDROID_MDNS */
 }
 
 
@@ -1304,6 +1338,9 @@ int main(int argc, char *argv[])
 #ifdef MIRACAST
 	miracast_init(&sigma_dut);
 #endif /* MIRACAST */
+#ifdef ANDROID_MDNS
+	mdnssd_init(&sigma_dut);
+#endif /* ANDROID_MDNS */
 	if (local_cmd)
 		return run_local_cmd(port, local_cmd);
 

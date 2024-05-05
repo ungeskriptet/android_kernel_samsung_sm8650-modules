@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1032,10 +1032,31 @@ QDF_STATUS pmo_core_txrx_suspend(struct wlan_objmgr_psoc *psoc)
 		goto out;
 	}
 
-	if (ret == -EOPNOTSUPP)
-		goto out;
+	if (ret == -EOPNOTSUPP) {
+		/* For chips, which not support IRQ disable,
+		 * drain will not be called, display and check
+		 * rings HP/TP once again
+		 */
+		if (!cdp_display_txrx_hw_info(dp_soc)) {
+			pmo_err("Prevent suspend, ring not empty");
+			status = QDF_STATUS_E_AGAIN;
+		}
 
-	cdp_drain_txrx(dp_soc);
+		goto out;
+	}
+
+	status = cdp_drain_txrx(dp_soc, 0);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		pmo_err("Prevent suspend unable to drain txrx status:%u",
+			status);
+		ret = hif_enable_grp_irqs(hif_ctx);
+		if (ret && ret != -EOPNOTSUPP) {
+			pmo_err("Failed to enable grp irqs: %d", ret);
+			qdf_trigger_self_recovery(psoc, QDF_ENABLE_IRQ_FAILURE);
+		}
+		goto out;
+	}
+
 	pmo_ctx->wow.txrx_suspended = true;
 out:
 	pmo_psoc_put_ref(psoc);
@@ -1643,11 +1664,18 @@ void pmo_core_psoc_handle_initial_wake_up(void *cb_ctx)
 {
 	struct pmo_psoc_priv_obj *psoc_ctx;
 	struct wlan_objmgr_psoc *psoc = (struct wlan_objmgr_psoc *)cb_ctx;
+	void *hif_ctx;
 
 	if (!psoc) {
 		pmo_err("cb ctx/psoc is null");
 		return;
 	}
+
+	hif_ctx = pmo_core_psoc_get_hif_handle(psoc);
+	if (!hif_ctx)
+		pmo_err("hif ctx is null, request resume not called");
+	else if(hif_pm_get_wake_irq_type(hif_ctx) == HIF_PM_CE_WAKE)
+		hif_rtpm_check_and_request_resume(true);
 
 	psoc_ctx = pmo_psoc_get_priv(psoc);
 	pmo_core_update_wow_initial_wake_up(psoc_ctx, 1);

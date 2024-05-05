@@ -1242,6 +1242,13 @@ scm_scan_req_update_params(struct wlan_objmgr_vdev *vdev,
 	if (req->scan_req.scan_type == SCAN_TYPE_RRM)
 		req->scan_req.scan_ctrl_flags_ext |= SCAN_FLAG_EXT_RRM_SCAN_IND;
 
+	if ((wlan_vdev_mlme_get_opmode(vdev) == QDF_P2P_DEVICE_MODE ||
+	     wlan_vdev_mlme_get_opmode(vdev) == QDF_P2P_CLIENT_MODE) &&
+	    !qdf_is_macaddr_zero(&req->scan_req.bssid_list[0]) &&
+	    !qdf_is_macaddr_broadcast(&req->scan_req.bssid_list[0]))
+		req->scan_req.scan_ctrl_flags_ext |=
+			SCAN_FLAG_EXT_STOP_IF_BSSID_FOUND;
+
 	scm_req_update_dwell_time_as_per_scan_mode(vdev, req);
 
 	scm_debug("scan_ctrl_flags_ext %0x", req->scan_req.scan_ctrl_flags_ext);
@@ -1687,8 +1694,6 @@ void scm_update_last_scan_time_per_channel(struct wlan_objmgr_vdev *vdev,
 	for (i = 0; i < chan_info->num_chan ; i++) {
 		if (chan_info->ch_scan_info[i].freq == chan_freq) {
 			chan_info->ch_scan_info[i].last_scan_time = time;
-			scm_debug("chan freq %d scan time %u\n",
-				  chan_freq, time);
 			chan_found = true;
 			break;
 		}
@@ -1699,7 +1704,6 @@ void scm_update_last_scan_time_per_channel(struct wlan_objmgr_vdev *vdev,
 		chan_info->ch_scan_info[chan_info->num_chan].last_scan_time =
 									time;
 		chan_info->num_chan++;
-		scm_debug("chan freq %d scan time %u\n", chan_freq, time);
 	}
 }
 

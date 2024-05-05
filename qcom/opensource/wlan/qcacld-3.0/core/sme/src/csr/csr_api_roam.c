@@ -3772,61 +3772,6 @@ static enum csr_akm_type csr_translate_akm_type(enum ani_akm_type akm_type)
 	return csr_akm_type;
 }
 
-static bool csr_is_sae_akm_present(tDot11fIERSN * const rsn_ie)
-{
-	uint16_t i;
-
-	if (rsn_ie->akm_suite_cnt > 6) {
-		sme_debug("Invalid akm_suite_cnt in Rx RSN IE");
-		return false;
-	}
-
-	for (i = 0; i < rsn_ie->akm_suite_cnt; i++) {
-		if (LE_READ_4(rsn_ie->akm_suite[i]) == RSN_AUTH_KEY_MGMT_SAE) {
-			sme_debug("SAE AKM present");
-			return true;
-		}
-	}
-	return false;
-}
-
-static bool csr_is_sae_peer_allowed(struct mac_context *mac_ctx,
-				    struct assoc_ind *assoc_ind,
-				    struct csr_roam_session *session,
-				    tDot11fIERSN *rsn_ie,
-				    enum wlan_status_code *mac_status_code)
-{
-	bool is_allowed = false;
-	uint8_t *peer_mac_addr;
-
-	/* Allow the peer if it's SAE authenticated */
-	if (assoc_ind->is_sae_authenticated)
-		return true;
-
-	/* Use peer MLD address to find PMKID
-	 * if MLD address is valid
-	 */
-	peer_mac_addr = assoc_ind->peer_mld_addr;
-	if (qdf_is_macaddr_zero((struct qdf_mac_addr *)peer_mac_addr))
-		peer_mac_addr = assoc_ind->peerMacAddr;
-
-	/* Allow the peer with valid PMKID */
-	if (!rsn_ie->pmkid_count) {
-		*mac_status_code = STATUS_NOT_SUPPORTED_AUTH_ALG;
-		sme_debug("No PMKID present in RSNIE; Tried to use SAE AKM after non-SAE authentication");
-	} else if (csr_is_pmkid_found_for_peer(mac_ctx, session, peer_mac_addr,
-					       &rsn_ie->pmkid[0][0],
-					       rsn_ie->pmkid_count)) {
-		sme_debug("Valid PMKID found for SAE peer");
-		is_allowed = true;
-	} else {
-		*mac_status_code = STATUS_INVALID_PMKID;
-		sme_debug("No valid PMKID found for SAE peer");
-	}
-
-	return is_allowed;
-}
-
 #ifdef WLAN_FEATURE_11BE_MLO
 static void
 csr_send_assoc_ind_to_upper_layer_mac_copy(tSirSmeAssocIndToUpperLayerCnf *cnf,
@@ -4061,26 +4006,6 @@ csr_roam_chk_lnk_assoc_ind(struct mac_context *mac_ctx, tSirSmeRsp *msg_ptr)
 				roam_info->ft_pending_assoc_ind = NULL;
 			}
 			roam_info->status_code = eSIR_SME_ASSOC_REFUSED;
-		} else if (pAssocInd->rsnIE.length && WLAN_ELEMID_RSN ==
-			   pAssocInd->rsnIE.rsnIEdata[0]) {
-			tDot11fIERSN rsn_ie = {0};
-
-			if (dot11f_unpack_ie_rsn(mac_ctx,
-						 pAssocInd->rsnIE.rsnIEdata + 2,
-						 pAssocInd->rsnIE.length - 2,
-						 &rsn_ie, false)
-			    != DOT11F_PARSE_SUCCESS ||
-			    (csr_is_sae_akm_present(&rsn_ie) &&
-			     !csr_is_sae_peer_allowed(mac_ctx, pAssocInd,
-						      session,
-						      &rsn_ie,
-						      &mac_status_code))) {
-				status = QDF_STATUS_E_INVAL;
-				roam_info->status_code =
-						eSIR_SME_ASSOC_REFUSED;
-				sme_debug("SAE peer not allowed: Status: %d",
-					  mac_status_code);
-			}
 		}
 	}
 	sme_debug("csr_akm_type: %d", csr_akm_type);
@@ -5835,8 +5760,10 @@ cm_csr_connect_done_ind(struct wlan_objmgr_vdev *vdev,
 	 * Update the IEs after connection to reconfigure
 	 * any capability that changed during connection.
 	 */
-	sme_set_vdev_ies_per_band(mac_handle, vdev_id,
-				  wlan_vdev_mlme_get_opmode(vdev));
+	if (mlme_obj->cfg.obss_ht40.is_override_ht20_40_24g)
+		sme_set_vdev_ies_per_band(mac_handle, vdev_id,
+					  wlan_vdev_mlme_get_opmode(vdev));
+
 	return QDF_STATUS_SUCCESS;
 }
 
@@ -5893,12 +5820,13 @@ QDF_STATUS cm_csr_handle_diconnect_req(struct wlan_objmgr_vdev *vdev,
 }
 
 QDF_STATUS
-cm_csr_diconnect_done_ind(struct wlan_objmgr_vdev *vdev,
-			  struct wlan_cm_discon_rsp *rsp)
+cm_csr_disconnect_done_ind(struct wlan_objmgr_vdev *vdev,
+			   struct wlan_cm_discon_rsp *rsp)
 {
 	mac_handle_t mac_handle;
 	struct mac_context *mac_ctx;
 	uint8_t vdev_id = wlan_vdev_get_id(vdev);
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
 
 	/*
 	 * This API is to update legacy struct and should be removed once
@@ -5911,6 +5839,10 @@ cm_csr_diconnect_done_ind(struct wlan_objmgr_vdev *vdev,
 	if (!mac_ctx)
 		return QDF_STATUS_E_INVAL;
 
+	mlme_obj = mlme_get_psoc_ext_obj(mac_ctx->psoc);
+	if (!mlme_obj)
+		return QDF_STATUS_E_INVAL;
+
 	cm_csr_set_idle(vdev_id);
 	if (cm_is_vdev_roaming(vdev))
 		sme_qos_update_hand_off(vdev_id, false);
@@ -5921,8 +5853,12 @@ cm_csr_diconnect_done_ind(struct wlan_objmgr_vdev *vdev,
 	 * any connection specific capability change and
 	 * to reset back to self cap
 	 */
-	sme_set_vdev_ies_per_band(mac_handle, vdev_id,
-				  wlan_vdev_mlme_get_opmode(vdev));
+	if (mlme_obj->cfg.obss_ht40.is_override_ht20_40_24g) {
+		wlan_cm_set_force_20mhz_in_24ghz(vdev, true);
+		sme_set_vdev_ies_per_band(mac_handle, vdev_id,
+					  wlan_vdev_mlme_get_opmode(vdev));
+	}
+
 	return QDF_STATUS_SUCCESS;
 }
 

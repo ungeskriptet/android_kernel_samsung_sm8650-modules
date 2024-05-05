@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -354,6 +354,7 @@ struct mlo_wsi_info {
  * @force_non_assoc_prim_umac: Force non-assoc link to be primary umac
  * @lswitch_notifier: Link switch notifier callbacks
  * @wsi_info: WSI stats info
+ * @disable_eml: Disable Enhanced Multi Link features(eMLSR and eMLMR).
  */
 struct mlo_mgr_context {
 #ifdef WLAN_MLO_USE_SPINLOCK
@@ -385,6 +386,7 @@ struct mlo_mgr_context {
 	struct wlan_mlo_link_switch_notifier lswitch_notifier[WLAN_UMAC_COMP_ID_MAX];
 #endif /* WLAN_FEATURE_11BE_MLO_ADV_FEATURE */
 	struct mlo_wsi_info *wsi_info;
+	bool disable_eml;
 };
 
 /**
@@ -424,6 +426,25 @@ struct mlo_link_bss_params {
 };
 
 #ifdef WLAN_FEATURE_11BE_MLO
+
+/**
+ * enum mlo_link_info_event_status - link info event status
+ * @WLAN_LINK_INFO_EVENT_SUCCESS: success
+ * @WLAN_LINK_INFO_EVENT_REJECT_FAILURE: reject due to common failure reason
+ * @WLAN_LINK_INFO_EVENT_REJECT_VDEV_NOT_UP: reject as vdev is not up
+ * @WLAN_LINK_INFO_EVENT_REJECT_ROAMING_IN_PROGRESS: reject as roaming
+ *						     is in progress
+ * @WLAN_LINK_INFO_EVENT_REJECT_NON_MLO_CONNECTION: reject as it's not
+ *						    MLO connection
+ */
+enum mlo_link_info_event_status {
+	WLAN_LINK_INFO_EVENT_SUCCESS,
+	WLAN_LINK_INFO_EVENT_REJECT_FAILURE,
+	WLAN_LINK_INFO_EVENT_REJECT_VDEV_NOT_UP,
+	WLAN_LINK_INFO_EVENT_REJECT_ROAMING_IN_PROGRESS,
+	WLAN_LINK_INFO_EVENT_REJECT_NON_MLO_CONNECTION,
+};
+
 /**
  * struct mlo_link_state_cmd_params - MLO link state params
  * @vdev_id: Vdev id
@@ -528,6 +549,84 @@ struct mlo_sta_quiet_status {
 };
 
 /**
+ * enum mlo_link_force_mode: MLO link force modes
+ * @MLO_LINK_FORCE_MODE_ACTIVE:
+ *  Force specific links active
+ * @MLO_LINK_FORCE_MODE_INACTIVE:
+ *  Force specific links inactive
+ * @MLO_LINK_FORCE_MODE_ACTIVE_NUM:
+ *  Force active a number of links, firmware to decide which links to inactive
+ * @MLO_LINK_FORCE_MODE_INACTIVE_NUM:
+ *  Force inactive a number of links, firmware to decide which links to inactive
+ * @MLO_LINK_FORCE_MODE_NO_FORCE:
+ *  Cancel the force operation of specific links, allow firmware to decide
+ * @MLO_LINK_FORCE_MODE_ACTIVE_INACTIVE: Force specific links active and
+ *  force specific links inactive
+ */
+enum mlo_link_force_mode {
+	MLO_LINK_FORCE_MODE_ACTIVE       = 1,
+	MLO_LINK_FORCE_MODE_INACTIVE     = 2,
+	MLO_LINK_FORCE_MODE_ACTIVE_NUM   = 3,
+	MLO_LINK_FORCE_MODE_INACTIVE_NUM = 4,
+	MLO_LINK_FORCE_MODE_NO_FORCE     = 5,
+	MLO_LINK_FORCE_MODE_ACTIVE_INACTIVE = 6,
+};
+
+/**
+ * enum mlo_link_force_reason: MLO link force reasons
+ * @MLO_LINK_FORCE_REASON_CONNECT:
+ *  Set force specific links because of new connection
+ * @MLO_LINK_FORCE_REASON_DISCONNECT:
+ *  Set force specific links because of new dis-connection
+ * @MLO_LINK_FORCE_REASON_LINK_REMOVAL:
+ *  Set force specific links because of AP side link removal
+ * @MLO_LINK_FORCE_REASON_TDLS:
+ *  Set force specific links because of TDLS operation
+ */
+enum mlo_link_force_reason {
+	MLO_LINK_FORCE_REASON_CONNECT    = 1,
+	MLO_LINK_FORCE_REASON_DISCONNECT = 2,
+	MLO_LINK_FORCE_REASON_LINK_REMOVAL = 3,
+	MLO_LINK_FORCE_REASON_TDLS = 4,
+};
+
+/**
+ * enum set_link_source - set link source
+ * @SET_LINK_FROM_CONCURRENCY: concurrent connection request
+ * @SET_LINK_FROM_VENDOR_CMD: vendor command request
+ * @SET_LINK_FROM_TDLS: tdls command request
+ * @SET_LINK_SOURCE_MAX: max num of source
+ */
+enum set_link_source {
+	SET_LINK_FROM_CONCURRENCY = 0,
+	SET_LINK_FROM_VENDOR_CMD = 1,
+	SET_LINK_FROM_TDLS = 2,
+	SET_LINK_SOURCE_MAX,
+};
+
+/**
+ * struct set_link_req - set link request
+ * @mode: set link mode
+ * @reason: reason of set link
+ * @force_active_bitmap: force active link bitmap
+ * @force_inactive_bitmap: force inactive link bitmap
+ * @force_active_num: force active link num
+ * @force_active_num_bitmap: force active num link bitmap
+ * @force_inactive_num: force inactive link num
+ * @force_inactive_num_bitmap: force inactive num link bitmap
+ */
+struct set_link_req {
+	enum mlo_link_force_mode mode;
+	enum mlo_link_force_reason reason;
+	uint16_t force_active_bitmap;
+	uint16_t force_inactive_bitmap;
+	uint8_t force_active_num;
+	uint16_t force_active_num_bitmap;
+	uint8_t force_inactive_num;
+	uint16_t force_inactive_num_bitmap;
+};
+
+/**
  * struct ml_link_force_state - link force state.
  * @force_active_bitmap: force active link bitmap
  * @force_inactive_bitmap: force inactive link bitmap
@@ -555,9 +654,11 @@ struct ml_link_force_state {
  * struct wlan_link_force_context - link force ctx.
  * @force_state: current force active/inactive states which
  * have been sent to target
+ * @reqs: request of set link
  */
 struct wlan_link_force_context {
 	struct ml_link_force_state force_state;
+	struct set_link_req reqs[SET_LINK_SOURCE_MAX];
 };
 
 #if defined(UMAC_SUPPORT_MLNAWDS) || defined(MESH_MODE_SUPPORT)
@@ -592,6 +693,7 @@ struct mlnawds_config {
  * @link_status_flags: Current status of link
  * @ap_link_addr: Associated link BSSID
  * @link_chan_info: Associated link channel info
+ * @is_link_active: link state
  */
 struct mlo_link_info {
 	struct qdf_mac_addr link_addr;
@@ -610,6 +712,7 @@ struct mlo_link_info {
 	struct qdf_mac_addr ap_link_addr;
 	struct wlan_channel *link_chan_info;
 #endif
+	bool is_link_active;
 };
 
 /**
@@ -692,6 +795,7 @@ struct wlan_mlo_sta_assoc_pending_list {
  * @emlsr_cap: EMLSR capabilities info
  * @link_force_ctx: set link force mode context
  * @ml_link_control_mode: link control mode configured via user space
+ * @ml_chan_switch_in_progress: Flag to track CSA at MLD level
  */
 struct wlan_mlo_sta {
 	qdf_bitmap(wlan_connect_req_links, WLAN_UMAC_MLO_MAX_VDEVS);
@@ -722,6 +826,7 @@ struct wlan_mlo_sta {
 	struct wlan_link_force_context link_force_ctx;
 #endif
 	uint8_t ml_link_control_mode;
+	bool ml_chan_switch_in_progress;
 };
 
 /**
@@ -1224,48 +1329,6 @@ struct mlo_osif_ext_ops {
 
 /* maximum size of link number param array for MLO link set active command */
 #define MLO_LINK_NUM_SZ 2
-
-/**
- * enum mlo_link_force_mode: MLO link force modes
- * @MLO_LINK_FORCE_MODE_ACTIVE:
- *  Force specific links active
- * @MLO_LINK_FORCE_MODE_INACTIVE:
- *  Force specific links inactive
- * @MLO_LINK_FORCE_MODE_ACTIVE_NUM:
- *  Force active a number of links, firmware to decide which links to inactive
- * @MLO_LINK_FORCE_MODE_INACTIVE_NUM:
- *  Force inactive a number of links, firmware to decide which links to inactive
- * @MLO_LINK_FORCE_MODE_NO_FORCE:
- *  Cancel the force operation of specific links, allow firmware to decide
- * @MLO_LINK_FORCE_MODE_ACTIVE_INACTIVE: Force specific links active and
- *  force specific links inactive
- */
-enum mlo_link_force_mode {
-	MLO_LINK_FORCE_MODE_ACTIVE       = 1,
-	MLO_LINK_FORCE_MODE_INACTIVE     = 2,
-	MLO_LINK_FORCE_MODE_ACTIVE_NUM   = 3,
-	MLO_LINK_FORCE_MODE_INACTIVE_NUM = 4,
-	MLO_LINK_FORCE_MODE_NO_FORCE     = 5,
-	MLO_LINK_FORCE_MODE_ACTIVE_INACTIVE = 6,
-};
-
-/**
- * enum mlo_link_force_reason: MLO link force reasons
- * @MLO_LINK_FORCE_REASON_CONNECT:
- *  Set force specific links because of new connection
- * @MLO_LINK_FORCE_REASON_DISCONNECT:
- *  Set force specific links because of new dis-connection
- * @MLO_LINK_FORCE_REASON_LINK_REMOVAL:
- *  Set force specific links because of AP side link removal
- * @MLO_LINK_FORCE_REASON_TDLS:
- *  Set force specific links because of TDLS operation
- */
-enum mlo_link_force_reason {
-	MLO_LINK_FORCE_REASON_CONNECT    = 1,
-	MLO_LINK_FORCE_REASON_DISCONNECT = 2,
-	MLO_LINK_FORCE_REASON_LINK_REMOVAL = 3,
-	MLO_LINK_FORCE_REASON_TDLS = 4,
-};
 
 /**
  * struct mlo_link_set_active_resp: MLO link set active response structure

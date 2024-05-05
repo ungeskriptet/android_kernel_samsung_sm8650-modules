@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -36,6 +36,16 @@
 
 /* Preprocessor definitions and constants */
 #define QDF_MAX_SGLIST 4
+
+/* Define a QDF macro for declaring flexible arrays */
+#define QDF_FLEX_ARRAY(type, name) \
+	union { \
+		type name ## _first_element; \
+		struct { \
+			struct {} dummy_struct; \
+			type name[]; \
+		}; \
+	}
 
 /*
  * Add more levels here based on the number of perf clusters in SoC
@@ -103,6 +113,21 @@ typedef struct qdf_sglist {
  * qdf_toupper - char lower to upper.
  */
 #define qdf_toupper __qdf_toupper
+
+/* set if the flags were changed */
+#define QDF_MONITOR_FLAG_CHANGED __QDF_MONITOR_FLAG_CHANGED
+/* Pass frames with bad FCS */
+#define QDF_MONITOR_FLAG_FCSFAIL __QDF_MONITOR_FLAG_FCSFAIL
+/* Pass frames with bad PLCP */
+#define QDF_MONITOR_FLAG_PLCPFAIL __QDF_MONITOR_FLAG_PLCPFAIL
+/* Pass control frames */
+#define QDF_MONITOR_FLAG_CONTROL __QDF_MONITOR_FLAG_CONTROL
+/* Disable BSSID filtering */
+#define QDF_MONITOR_FLAG_OTHER_BSS __QDF_MONITOR_FLAG_OTHER_BSS
+/* Report frames after processing */
+#define QDF_MONITOR_FLAG_COOK_FRAMES __QDF_MONITOR_FLAG_COOK_FRAMES
+/* Use the configured MAC address and ACK incoming unicast packets */
+#define QDF_MONITOR_FLAG_ACTIVE __QDF_MONITOR_FLAG_ACTIVE
 
 typedef void *qdf_net_handle_t;
 
@@ -1606,6 +1631,15 @@ enum qdf_suspend_type {
  * of order packet counter values
  * @QDF_MGMT_RX_REO_ZERO_DURATION_PKT: Reception of management packet with zero
  * packet duration
+ * @QDF_VDEV_ACTIVE_SER_CONNECT_TIMEOUT: Active connect cmd in serialization
+ * timed out.
+ * @QDF_VDEV_ACTIVE_SER_DISCONNECT_TIMEOUT: Active disconnect cmd in
+ * serialization timed out.
+ * @QDF_VDEV_ACTIVE_SER_REASSOC_TIMEOUT:  Active reassoc cmd in serialization
+ * timed out.
+ * @QDF_VDEV_ACTIVE_SER_LINK_SWITCH_TIMEOUT: Active link switch cmd in
+ * serialization timed out.
+ * @QDF_ENABLE_IRQ_FAILURE: Failed to enable IRQs
  */
 enum qdf_hang_reason {
 	QDF_REASON_UNSPECIFIED,
@@ -1646,6 +1680,11 @@ enum qdf_hang_reason {
 	QDF_MGMT_RX_REO_INCONSISTENT_SNAPSHOT,
 	QDF_MGMT_RX_REO_OUT_OF_ORDER_PKT,
 	QDF_MGMT_RX_REO_ZERO_DURATION_PKT,
+	QDF_VDEV_ACTIVE_SER_CONNECT_TIMEOUT,
+	QDF_VDEV_ACTIVE_SER_DISCONNECT_TIMEOUT,
+	QDF_VDEV_ACTIVE_SER_REASSOC_TIMEOUT,
+	QDF_VDEV_ACTIVE_SER_LINK_SWITCH_TIMEOUT,
+	QDF_ENABLE_IRQ_FAILURE,
 };
 
 /**

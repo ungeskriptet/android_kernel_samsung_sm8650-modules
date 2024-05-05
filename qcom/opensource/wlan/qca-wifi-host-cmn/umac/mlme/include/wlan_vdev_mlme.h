@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -28,6 +28,7 @@
 
 struct vdev_mlme_obj;
 struct cnx_mgr;
+struct ml_rv_info;
 
 /* Requestor ID for multiple vdev restart */
 #define MULTIPLE_VDEV_RESTART_REQ_ID 0x1234
@@ -378,6 +379,7 @@ struct vdev_mlme_proto {
  * @he_curr_non_srg_pd_threshold: current configured NON-SRG PD threshold
  * @he_curr_srg_pd_threshold: current configured SRG PD threshold
  * @is_pd_threshold_present: PD threshold is present in SR enable command or not
+ * @disable_fd_in_6ghz_band: Disable FD in 6 GHz if OOB discovery is enabled
  */
 struct vdev_mlme_mgmt_generic {
 	uint32_t rts_threshold;
@@ -419,6 +421,7 @@ struct vdev_mlme_mgmt_generic {
 	int32_t he_curr_srg_pd_threshold;
 	bool is_pd_threshold_present;
 #endif
+	bool disable_fd_in_6ghz_band;
 };
 
 /**
@@ -721,6 +724,8 @@ enum vdev_start_resp_type {
  *                                      the first ml reconfig IE
  * @mlme_vdev_reconfig_timer_complete:  callback to process ml reconfing
  *                                      operation
+ * @mlme_vdev_reconfig_notify_standby: callback to notify to process standby
+ *                                      link removal
  * @mlme_vdev_notify_mlo_sync_wait_entry:
  */
 struct vdev_mlme_ops {
@@ -806,6 +811,9 @@ struct vdev_mlme_ops {
 				uint16_t *tbtt_count, uint16_t bcn_int);
 	void (*mlme_vdev_reconfig_timer_complete)(
 				struct vdev_mlme_obj *vdev_mlme);
+	QDF_STATUS (*mlme_vdev_reconfig_notify_standby)(
+				struct vdev_mlme_obj *vdev_mlme,
+				struct ml_rv_info *reconfig_info);
 	QDF_STATUS (*mlme_vdev_notify_mlo_sync_wait_entry)(
 				struct vdev_mlme_obj *vdev_mlme);
 };

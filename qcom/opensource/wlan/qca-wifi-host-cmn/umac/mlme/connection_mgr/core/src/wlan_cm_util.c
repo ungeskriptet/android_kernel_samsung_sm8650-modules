@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2015, 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -73,6 +73,11 @@ struct cnx_mgr *cm_get_cm_ctx_fl(struct wlan_objmgr_vdev *vdev,
 {
 	struct vdev_mlme_obj *vdev_mlme;
 	struct cnx_mgr *cm_ctx = NULL;
+
+	if (!vdev) {
+		mlme_rl_nofl_err("%s:%u: vdev is NULL", func, line);
+		return NULL;
+	}
 
 	vdev_mlme = wlan_vdev_mlme_get_cmpt_obj(vdev);
 	if (vdev_mlme)
@@ -192,6 +197,24 @@ QDF_STATUS cm_set_key(struct cnx_mgr *cm_ctx, bool unicast,
 }
 #endif
 
+static void cm_dump_sm_history(struct wlan_objmgr_vdev *vdev)
+{
+	struct vdev_mlme_obj *vdev_mlme;
+	struct wlan_sm *vdev_sm;
+
+	vdev_mlme = wlan_objmgr_vdev_get_comp_private_obj(vdev,
+							  WLAN_UMAC_COMP_MLME);
+	if (!vdev_mlme)
+		return;
+
+	vdev_sm = vdev_mlme->sm_hdl;
+	if (!vdev_sm)
+		return;
+
+	wlan_sm_print_history(vdev_sm);
+	cm_sm_history_print(vdev);
+}
+
 #ifdef CONN_MGR_ADV_FEATURE
 void cm_store_wep_key(struct cnx_mgr *cm_ctx,
 		      struct wlan_cm_connect_crypto_info *crypto,
@@ -250,7 +273,8 @@ void cm_store_wep_key(struct cnx_mgr *cm_ctx,
 		   wep_keys->seq_len);
 }
 
-void cm_trigger_panic_on_cmd_timeout(struct wlan_objmgr_vdev *vdev)
+void cm_trigger_panic_on_cmd_timeout(struct wlan_objmgr_vdev *vdev,
+				     enum qdf_hang_reason reason)
 {
 	struct wlan_objmgr_psoc *psoc;
 
@@ -261,32 +285,15 @@ void cm_trigger_panic_on_cmd_timeout(struct wlan_objmgr_vdev *vdev)
 	if (qdf_is_recovering() || qdf_is_fw_down())
 		return;
 
-	qdf_trigger_self_recovery(psoc, QDF_ACTIVE_LIST_TIMEOUT);
+	cm_dump_sm_history(vdev);
+	qdf_trigger_self_recovery(psoc, reason);
 }
 
 #else
-void cm_trigger_panic_on_cmd_timeout(struct wlan_objmgr_vdev *vdev)
+void cm_trigger_panic_on_cmd_timeout(struct wlan_objmgr_vdev *vdev,
+				     enum qdf_hang_reason reason)
 {
-	struct vdev_mlme_obj *vdev_mlme = NULL;
-	struct wlan_sm *vdev_sm = NULL;
-
-	vdev_mlme = wlan_objmgr_vdev_get_comp_private_obj(
-			vdev,
-			WLAN_UMAC_COMP_MLME);
-	if (!vdev_mlme) {
-		mlme_err("VDEV MLME is null");
-		goto error;
-	}
-
-	vdev_sm = vdev_mlme->sm_hdl;
-	if (!vdev_sm) {
-		mlme_err("VDEV SM is null");
-		goto error;
-	}
-
-	wlan_sm_print_history(vdev_sm);
-	cm_sm_history_print(vdev);
-error:
+	cm_dump_sm_history(vdev);
 	QDF_ASSERT(0);
 }
 #endif
@@ -1382,6 +1389,28 @@ bool cm_is_vdev_disconnected(struct wlan_objmgr_vdev *vdev)
 	return false;
 }
 
+#ifdef CONN_MGR_ADV_FEATURE
+bool cm_is_vdev_idle_due_to_link_switch(struct wlan_objmgr_vdev *vdev)
+{
+	struct cnx_mgr *cm_ctx;
+	enum wlan_cm_sm_state state;
+	enum wlan_cm_sm_state sub_state;
+
+	cm_ctx = cm_get_cm_ctx(vdev);
+	if (!cm_ctx)
+		return false;
+
+	state = cm_get_state(cm_ctx);
+	sub_state = cm_get_sub_state(cm_ctx);
+
+	if (state == WLAN_CM_S_INIT &&
+	    sub_state == WLAN_CM_SS_IDLE_DUE_TO_LINK_SWITCH)
+		return true;
+
+	return false;
+}
+#endif
+
 bool cm_is_vdev_roaming(struct wlan_objmgr_vdev *vdev)
 {
 	struct cnx_mgr *cm_ctx;
@@ -1824,7 +1853,7 @@ cm_get_curr_candidate_entry(struct wlan_objmgr_vdev *vdev,
 	struct cm_req *cm_req;
 	uint32_t prefix = CM_ID_GET_PREFIX(cm_id);
 	struct cnx_mgr *cm_ctx;
-	struct scan_cache_entry *entry = NULL;
+	struct scan_cache_entry *cur_entry, *entry = NULL;
 
 	if (prefix != CONNECT_REQ_PREFIX)
 		return NULL;
@@ -1845,11 +1874,11 @@ cm_get_curr_candidate_entry(struct wlan_objmgr_vdev *vdev,
 			continue;
 		}
 
-		if (!cm_req->connect_req.cur_candidate ||
-		    !cm_req->connect_req.cur_candidate->entry)
+		if (!cm_req->connect_req.cur_candidate)
 			break;
 
-		entry = cm_req->connect_req.cur_candidate->entry;
+		cur_entry = cm_req->connect_req.cur_candidate->entry;
+		entry = util_scan_copy_cache_entry(cur_entry);
 		break;
 	}
 	cm_req_lock_release(cm_ctx);

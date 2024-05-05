@@ -4234,22 +4234,6 @@ qdf_nbuf_t dp_tx_send_mesh(struct cdp_soc_t *soc_hdl, uint8_t vdev_id,
 
 #endif
 
-#ifdef QCA_DP_TX_NBUF_AND_NBUF_DATA_PREFETCH
-static inline
-void dp_tx_prefetch_nbuf_data(qdf_nbuf_t nbuf)
-{
-	if (nbuf) {
-		qdf_prefetch(&nbuf->len);
-		qdf_prefetch(&nbuf->data);
-	}
-}
-#else
-static inline
-void dp_tx_prefetch_nbuf_data(qdf_nbuf_t nbuf)
-{
-}
-#endif
-
 #ifdef DP_UMAC_HW_RESET_SUPPORT
 qdf_nbuf_t dp_tx_drop(struct cdp_soc_t *soc_hdl, uint8_t vdev_id,
 		      qdf_nbuf_t nbuf)
@@ -4472,8 +4456,6 @@ send_single:
 	 * prepare direct-buffer type TCL descriptor and enqueue to TCL
 	 * SRNG. There is no need to setup a MSDU extension descriptor.
 	 */
-	dp_tx_prefetch_nbuf_data(nbuf);
-
 	nbuf = dp_tx_send_msdu_single_wrapper(vdev, nbuf, &msdu_info,
 					      peer_id, end_nbuf);
 	return nbuf;
@@ -6001,6 +5983,57 @@ dp_update_mcast_stats(struct dp_txrx_peer *txrx_peer, uint8_t link_id,
 {
 }
 #endif
+#if defined(WLAN_FEATURE_11BE_MLO) && defined(DP_MLO_LINK_STATS_SUPPORT)
+/**
+ * dp_tx_comp_set_nbuf_band() - set nbuf band.
+ * @soc: dp soc handle
+ * @nbuf: nbuf handle
+ * @ts: tx completion status
+ *
+ * Return: None
+ */
+static inline void
+dp_tx_comp_set_nbuf_band(struct dp_soc *soc, qdf_nbuf_t nbuf,
+			 struct hal_tx_completion_status *ts)
+{
+	struct qdf_mac_addr *mac_addr;
+	struct dp_peer *peer;
+	struct dp_txrx_peer *txrx_peer;
+	uint8_t link_id;
+
+	if ((QDF_NBUF_CB_GET_PACKET_TYPE(nbuf) !=
+		QDF_NBUF_CB_PACKET_TYPE_EAPOL &&
+	     QDF_NBUF_CB_GET_PACKET_TYPE(nbuf) !=
+		QDF_NBUF_CB_PACKET_TYPE_DHCP &&
+	     QDF_NBUF_CB_GET_PACKET_TYPE(nbuf) !=
+		QDF_NBUF_CB_PACKET_TYPE_DHCPV6) ||
+	    QDF_NBUF_CB_GET_IS_BCAST(nbuf))
+		return;
+
+	mac_addr = (struct qdf_mac_addr *)(qdf_nbuf_data(nbuf) +
+					   QDF_NBUF_DEST_MAC_OFFSET);
+
+	peer = dp_mld_peer_find_hash_find(soc, mac_addr->bytes, 0,
+					  DP_VDEV_ALL, DP_MOD_ID_TX_COMP);
+	if (qdf_likely(peer)) {
+		txrx_peer = dp_get_txrx_peer(peer);
+		if (qdf_likely(txrx_peer)) {
+			link_id =
+				dp_tx_get_link_id_from_ppdu_id(soc, ts,
+						  txrx_peer,
+						  txrx_peer->vdev);
+			qdf_nbuf_tx_set_band(nbuf, txrx_peer->ll_band[link_id]);
+		}
+		dp_peer_unref_delete(peer, DP_MOD_ID_TX_COMP);
+	}
+}
+#else
+static inline void
+dp_tx_comp_set_nbuf_band(struct dp_soc *soc, qdf_nbuf_t nbuf,
+			 struct hal_tx_completion_status *ts)
+{
+}
+#endif
 
 void dp_tx_comp_process_tx_status(struct dp_soc *soc,
 				  struct dp_tx_desc_s *tx_desc,
@@ -6063,6 +6096,7 @@ void dp_tx_comp_process_tx_status(struct dp_soc *soc,
 			(ts->status == HAL_TX_TQM_RR_REM_CMD_REM));
 
 	if (!txrx_peer) {
+		dp_tx_comp_set_nbuf_band(soc, nbuf, ts);
 		dp_info_rl("peer is null or deletion in progress");
 		DP_STATS_INC_PKT(soc, tx.tx_invalid_peer, 1, length);
 
@@ -6709,6 +6743,8 @@ more_data:
 		dp_err("HAL RING Access Failed -- %pK", hal_ring_hdl);
 		return 0;
 	}
+
+	hal_srng_update_ring_usage_wm_no_lock(soc->hal_soc, hal_ring_hdl);
 
 	if (!num_avail_for_reap)
 		num_avail_for_reap = hal_srng_dst_num_valid(hal_soc,
@@ -7899,6 +7935,7 @@ uint8_t dp_tx_need_multipass_process(struct dp_soc *soc, struct dp_vdev *vdev,
 	struct vlan_ethhdr *veh = NULL;
 	bool not_vlan = ((vdev->tx_encap_type == htt_cmn_pkt_type_raw) ||
 			(htons(eh->ether_type) != ETH_P_8021Q));
+	struct cdp_peer_info peer_info = { 0 };
 
 	if (qdf_unlikely(not_vlan))
 		return DP_VLAN_UNTAGGED;
@@ -7923,8 +7960,10 @@ uint8_t dp_tx_need_multipass_process(struct dp_soc *soc, struct dp_vdev *vdev,
 		return DP_VLAN_UNTAGGED;
 	}
 
-	peer = dp_peer_find_hash_find(soc, eh->ether_dhost, 0, DP_VDEV_ALL,
-				      DP_MOD_ID_TX_MULTIPASS);
+	DP_PEER_INFO_PARAMS_INIT(&peer_info, DP_VDEV_ALL, eh->ether_dhost,
+				 false, CDP_WILD_PEER_TYPE);
+	peer = dp_peer_hash_find_wrapper((struct dp_soc *)soc, &peer_info,
+					 DP_MOD_ID_TX_MULTIPASS);
 	if (qdf_unlikely(!peer))
 		return DP_VLAN_UNTAGGED;
 

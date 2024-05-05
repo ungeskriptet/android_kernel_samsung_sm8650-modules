@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -585,18 +585,8 @@ struct sk_buff *__qdf_nbuf_alloc(qdf_device_t osdev, size_t size, int reserve,
 	if (align)
 		size += (align - 1);
 
-	if (in_interrupt() || irqs_disabled() || in_atomic()) {
+	if (in_interrupt() || irqs_disabled() || in_atomic())
 		flags = GFP_ATOMIC;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
-		/*
-		 * Observed that kcompactd burns out CPU to make order-3 page.
-		 *__netdev_alloc_skb has 4k page fallback option just in case of
-		 * failing high order page allocation so we don't need to be
-		 * hard. Make kcompactd rest in piece.
-		 */
-		flags = flags & ~__GFP_KSWAPD_RECLAIM;
-#endif
-	}
 
 	skb =  alloc_skb(size, flags);
 
@@ -1783,6 +1773,15 @@ bool
 __qdf_nbuf_is_ipv4_last_fragment(struct sk_buff *skb)
 {
 	if (((ntohs(ip_hdr(skb)->frag_off) & ~IP_OFFSET) & IP_MF) == 0)
+		return true;
+
+	return false;
+}
+
+bool
+__qdf_nbuf_is_ipv4_fragment(struct sk_buff *skb)
+{
+	if (ntohs(ip_hdr(skb)->frag_off) & IP_MF)
 		return true;
 
 	return false;
@@ -5932,24 +5931,6 @@ void __qdf_nbuf_add_rx_frag(__qdf_frag_t buf, __qdf_nbuf_t nbuf,
 
 qdf_export_symbol(__qdf_nbuf_add_rx_frag);
 
-void __qdf_nbuf_ref_frag(__qdf_frag_t buf)
-{
-	struct page *page;
-	skb_frag_t frag = {0};
-
-	page = virt_to_head_page(buf);
-	__skb_frag_set_page(&frag, page);
-
-	/*
-	 * since __skb_frag_ref() just use page to increase ref
-	 * we just decode page alone
-	 */
-	qdf_frag_count_inc(QDF_NBUF_FRAG_DEBUG_COUNT_ONE);
-	__skb_frag_ref(&frag);
-}
-
-qdf_export_symbol(__qdf_nbuf_ref_frag);
-
 #ifdef NBUF_FRAG_MEMORY_DEBUG
 
 QDF_STATUS qdf_nbuf_move_frag_page_offset_debug(qdf_nbuf_t nbuf, uint8_t idx,
@@ -6008,19 +5989,6 @@ void qdf_nbuf_add_rx_frag_debug(qdf_frag_t buf, qdf_nbuf_t nbuf,
 }
 
 qdf_export_symbol(qdf_nbuf_add_rx_frag_debug);
-
-void qdf_nbuf_ref_frag_debug(qdf_frag_t buf, const char *func, uint32_t line)
-{
-	__qdf_nbuf_ref_frag(buf);
-
-	if (qdf_likely(is_initial_mem_debug_disabled))
-		return;
-
-	/* Update frag refcount in frag debug tracking table */
-	qdf_frag_debug_refcount_inc(buf, func, line);
-}
-
-qdf_export_symbol(qdf_nbuf_ref_frag_debug);
 
 void qdf_net_buf_debug_acquire_frag(qdf_nbuf_t buf, const char *func,
 				    uint32_t line)

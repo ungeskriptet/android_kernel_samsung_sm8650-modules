@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -105,7 +105,7 @@ do {                                                           \
 #define MAX_CDP_SEC_TYPE 12
 
 /* number of dwords for htt_tx_msdu_desc_ext2_t */
-#define DP_TX_MSDU_INFO_META_DATA_DWORDS 7
+#define DP_TX_MSDU_INFO_META_DATA_DWORDS 9
 
 #define dp_tx_alert(params...) QDF_TRACE_FATAL(QDF_MODULE_ID_DP_TX, params)
 #define dp_tx_err(params...) QDF_TRACE_ERROR(QDF_MODULE_ID_DP_TX, params)
@@ -2148,7 +2148,7 @@ static inline int dp_get_rtpm_tput_policy_requirement(struct dp_soc *soc)
  * @txrx_peer: txrx_peer pointer
  * @link_id: Peer Link ID
  *
- * Returen: None
+ * Return: None
  */
 static inline void
 dp_tx_set_nbuf_band(qdf_nbuf_t nbuf, struct dp_txrx_peer *txrx_peer,

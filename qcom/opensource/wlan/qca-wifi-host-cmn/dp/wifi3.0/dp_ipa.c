@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -1059,6 +1059,23 @@ static void dp_ipa_tx_comp_ring_init_hp(struct dp_soc *soc,
 			     res->tx_alt_comp_doorbell_vaddr);
 }
 
+static void
+dp_ipa_tx_comp_ring_update_hp_addr(struct dp_soc *soc,
+				   struct dp_ipa_resources *res)
+{
+	hal_ring_handle_t wbm_srng;
+
+	/* Ring doorbell to WBM2IPA ring with current HW HP value */
+	wbm_srng = soc->tx_comp_ring[IPA_TX_COMP_RING_IDX].hal_srng;
+	hal_srng_dst_update_hp_addr(soc->hal_soc, wbm_srng);
+
+	if (!res->tx_alt_comp_doorbell_paddr)
+		return;
+
+	wbm_srng = soc->tx_comp_ring[IPA_TX_ALT_COMP_RING_IDX].hal_srng;
+	hal_srng_dst_update_hp_addr(soc->hal_soc, wbm_srng);
+}
+
 static void dp_ipa_set_tx_doorbell_paddr(struct dp_soc *soc,
 					 struct dp_ipa_resources *ipa_res)
 {
@@ -1253,6 +1270,17 @@ static inline void dp_ipa_tx_comp_ring_init_hp(struct dp_soc *soc,
 
 	hal_srng_dst_init_hp(soc->hal_soc, wbm_srng,
 			     res->tx_comp_doorbell_vaddr);
+}
+
+static void
+dp_ipa_tx_comp_ring_update_hp_addr(struct dp_soc *soc,
+				   struct dp_ipa_resources *res)
+{
+	hal_ring_handle_t wbm_srng;
+
+	/* Ring doorbell to WBM2IPA ring with current HW HP value */
+	wbm_srng = soc->tx_comp_ring[IPA_TX_COMP_RING_IDX].hal_srng;
+	hal_srng_dst_update_hp_addr(soc->hal_soc, wbm_srng);
 }
 
 static void dp_ipa_set_tx_doorbell_paddr(struct dp_soc *soc,
@@ -3500,6 +3528,8 @@ QDF_STATUS dp_ipa_enable_pipes(struct cdp_soc_t *soc_hdl, uint8_t pdev_id,
 	if (soc->ipa_first_tx_db_access) {
 		dp_ipa_tx_comp_ring_init_hp(soc, ipa_res);
 		soc->ipa_first_tx_db_access = false;
+	} else {
+		dp_ipa_tx_comp_ring_update_hp_addr(soc, ipa_res);
 	}
 
 	return QDF_STATUS_SUCCESS;
@@ -4327,4 +4357,24 @@ void dp_ipa_get_wdi_version(struct cdp_soc_t *soc_hdl, uint8_t *wdi_ver)
 	else
 		*wdi_ver = IPA_WDI_3;
 }
+
+#ifdef IPA_WDI3_TX_TWO_PIPES
+bool dp_ipa_is_ring_ipa_tx(struct dp_soc *soc, uint8_t ring_id)
+{
+	if (!soc->wlan_cfg_ctx->ipa_enabled)
+		return false;
+
+	return (ring_id == IPA_TCL_DATA_RING_IDX) ||
+		((ring_id == IPA_TX_ALT_RING_IDX) &&
+		 wlan_cfg_is_ipa_two_tx_pipes_enabled(soc->wlan_cfg_ctx));
+}
+#else
+bool dp_ipa_is_ring_ipa_tx(struct dp_soc *soc, uint8_t ring_id)
+{
+	if (!soc->wlan_cfg_ctx->ipa_enabled)
+		return false;
+
+	return (ring_id == IPA_TCL_DATA_RING_IDX);
+}
+#endif /* IPA_WDI3_TX_TWO_PIPES */
 #endif

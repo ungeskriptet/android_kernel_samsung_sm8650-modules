@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -47,14 +47,12 @@
 
 /*
  * <ini>
- * enable_11be - Ini to enable/disable 11BE feature capability
+ * mlme_11be_target_capab - Flag to check the target capability for 11be
  * @Min: false
  * @Max: true
- * @Default: true
+ * @Default: false
  *
- * This ini is used to enable/disable 11be feature capability.
- * 0 - Disable 11be feature
- * 1 - Enable 11be feature
+ * This flag helps in confirming whether 11be is supported by the target.
  *
  * Related: None
  *
@@ -64,13 +62,13 @@
  *
  * </ini>
  */
-#define CFG_ENABLE_11BE CFG_INI_UINT( \
-	"enable_11be",\
+#define CFG_MLME_11BE_TARGET_CAPAB CFG_UINT( \
+	"mlme_11be_target_capab",\
 	0, \
 	1, \
 	1, \
 	CFG_VALUE_OR_DEFAULT, \
-	"11be enable/disable support")
+	"11be is supported by target")
 
 #ifdef WLAN_FEATURE_11BE
 /*
@@ -132,7 +130,7 @@
 
 #define CFG_CMN_MLME_ALL \
 	CFG(CFG_MLME_MAX_CHAN_SWITCH_IE_ENABLE) \
-	CFG(CFG_ENABLE_11BE) \
+	CFG(CFG_MLME_11BE_TARGET_CAPAB) \
 	CFG(CFG_MLME_MLO_RECONFIG_REASSOC_ENABLE) \
 	CFG_MLME_11BE_ALL
 

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  *
  * Permission to use, copy, modify, and/or distribute this software for
@@ -891,6 +891,12 @@ wlan_reg_get_next_lower_bandwidth(enum phy_ch_width ch_width)
 	return get_next_lower_bandwidth(ch_width);
 }
 
+enum phy_ch_width
+wlan_reg_get_next_higher_bandwidth(enum phy_ch_width ch_width)
+{
+	return reg_get_next_higher_bandwidth(ch_width);
+}
+
 #ifdef CONFIG_REG_CLIENT
 bool wlan_reg_is_freq_indoor_in_secondary_list(struct wlan_objmgr_pdev *pdev,
 					       qdf_freq_t freq)
@@ -1482,7 +1488,7 @@ wlan_reg_get_5g_bonded_channel_and_state_for_pwrmode(
 
 qdf_export_symbol(wlan_reg_get_5g_bonded_channel_and_state_for_pwrmode);
 
-#if defined(WLAN_FEATURE_11BE) && defined(CONFIG_REG_CLIENT)
+#if defined(CONFIG_REG_CLIENT)
 enum channel_state
 wlan_reg_get_bonded_channel_state_for_pwrmode(struct wlan_objmgr_pdev *pdev,
 					      qdf_freq_t freq,
@@ -1698,12 +1704,6 @@ wlan_reg_get_client_power_for_6ghz_ap(struct wlan_objmgr_pdev *pdev,
 	return reg_get_client_power_for_6ghz_ap(pdev, client_type, chan_freq,
 						is_psd, tx_power,
 						eirp_psd_power);
-}
-
-enum reg_6g_ap_type
-wlan_reg_decide_6g_ap_pwr_type(struct wlan_objmgr_pdev *pdev)
-{
-	return reg_decide_6g_ap_pwr_type(pdev);
 }
 
 QDF_STATUS

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -102,7 +102,7 @@ QDF_STATUS dp_rx_desc_sanity(struct dp_soc *soc, hal_soc_handle_t hal_soc,
 
 fail:
 	DP_STATS_INC(soc, rx.err.invalid_cookie, 1);
-	dp_err("Ring Desc:");
+	dp_err_rl("Sanity failed for ring Desc:");
 	hal_srng_dump_ring_desc(hal_soc, hal_ring_hdl,
 				ring_desc);
 	return QDF_STATUS_E_NULL_VALUE;
@@ -2787,6 +2787,45 @@ static bool dp_rx_is_udp_allowed_over_roam_peer(struct dp_vdev *vdev,
 	return false;
 }
 #endif
+
+#if defined(WLAN_FEATURE_11BE_MLO) && defined(DP_MLO_LINK_STATS_SUPPORT)
+/**
+ * dp_rx_nbuf_band_set() - set nbuf band.
+ * @soc: dp soc handle
+ * @nbuf: nbuf handle
+ *
+ * Return: None
+ */
+static inline void
+dp_rx_nbuf_band_set(struct dp_soc *soc, qdf_nbuf_t nbuf)
+{
+	struct qdf_mac_addr *mac_addr;
+	struct dp_peer *peer;
+	struct dp_txrx_peer *txrx_peer;
+
+	uint8_t link_id;
+
+	mac_addr = (struct qdf_mac_addr *)(qdf_nbuf_data(nbuf) +
+					   QDF_NBUF_SRC_MAC_OFFSET);
+
+	peer = dp_mld_peer_find_hash_find(soc, mac_addr->bytes, 0,
+					  DP_VDEV_ALL, DP_MOD_ID_RX);
+	if (qdf_likely(peer)) {
+		txrx_peer = dp_get_txrx_peer(peer);
+		if (qdf_likely(txrx_peer)) {
+			link_id = QDF_NBUF_CB_RX_LOGICAL_LINK_ID(nbuf);
+			qdf_nbuf_rx_set_band(nbuf, txrx_peer->ll_band[link_id]);
+		}
+		dp_peer_unref_delete(peer, DP_MOD_ID_RX);
+	}
+}
+#else
+static inline void
+dp_rx_nbuf_band_set(struct dp_soc *soc, qdf_nbuf_t nbuf)
+{
+}
+#endif
+
 void dp_rx_deliver_to_stack_no_peer(struct dp_soc *soc, qdf_nbuf_t nbuf)
 {
 	uint16_t peer_id;
@@ -2797,7 +2836,9 @@ void dp_rx_deliver_to_stack_no_peer(struct dp_soc *soc, qdf_nbuf_t nbuf)
 	uint32_t pkt_len = 0;
 	uint8_t *rx_tlv_hdr;
 	uint32_t frame_mask = FRAME_MASK_IPV4_ARP | FRAME_MASK_IPV4_DHCP |
-				FRAME_MASK_IPV4_EAPOL | FRAME_MASK_IPV6_DHCP;
+			      FRAME_MASK_IPV4_EAPOL | FRAME_MASK_IPV6_DHCP |
+			      FRAME_MASK_DNS_QUERY | FRAME_MASK_DNS_RESP;
+
 	bool is_special_frame = false;
 	struct dp_peer *peer = NULL;
 
@@ -2829,6 +2870,7 @@ void dp_rx_deliver_to_stack_no_peer(struct dp_soc *soc, qdf_nbuf_t nbuf)
 		if (is_special_frame ||
 		    dp_rx_is_udp_allowed_over_roam_peer(vdev, rx_tlv_hdr,
 							nbuf)) {
+			dp_rx_nbuf_band_set(soc, nbuf);
 			qdf_nbuf_set_exc_frame(nbuf, 1);
 			if (QDF_STATUS_SUCCESS !=
 			    vdev->osif_rx(vdev->osif_vdev, nbuf))

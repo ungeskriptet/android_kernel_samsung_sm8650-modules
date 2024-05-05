@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -911,7 +911,7 @@ hal_get_mac_addr1(hal_rx_mon_mpdu_start_t *rx_mpdu_start,
 			rx_mpdu_start->rx_mpdu_info_details.mac_addr_ad1_31_0;
 		if (ppdu_info->sw_frame_group_id ==
 		    HAL_MPDU_SW_FRAME_GROUP_CTRL_RTS) {
-			*(uint32_t *)&ppdu_info->rx_info.mac_addr1[4] =
+			*(uint16_t *)&ppdu_info->rx_info.mac_addr1[4] =
 				rx_mpdu_start->rx_mpdu_info_details.mac_addr_ad1_47_32;
 		}
 	}
@@ -2524,10 +2524,6 @@ hal_rx_status_get_tlv_info_generic_be(void *rx_tlv_hdr, void *ppduinfo,
 			hal_err("Matching ppdu_id(%u) detected",
 				ppdu_info->com_info.last_ppdu_id);
 
-		/* Reset ppdu_info before processing the ppdu */
-		qdf_mem_zero(ppdu_info,
-			     sizeof(struct hal_rx_ppdu_info));
-
 		ppdu_info->com_info.last_ppdu_id =
 			ppdu_info->com_info.ppdu_id =
 				HAL_RX_GET_64(rx_tlv, RX_PPDU_START,
@@ -2653,6 +2649,9 @@ hal_rx_status_get_tlv_info_generic_be(void *rx_tlv_hdr, void *ppduinfo,
 			break;
 		case HAL_RX_PKT_TYPE_11AX:
 			ppdu_info->rx_status.he_flags = 1;
+			break;
+		case HAL_RX_PKT_TYPE_11BE:
+			ppdu_info->rx_status.eht_flags = 1;
 			break;
 		default:
 			break;

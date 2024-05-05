@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -4911,11 +4911,43 @@ void dp_mon_register_tx_pkt_enh_ops_1_0(struct dp_mon_ops *mon_ops);
  * Return: QDF_STATUS
  */
 QDF_STATUS dp_local_pkt_capture_tx_config(struct dp_pdev *pdev);
+
+/*
+ * dp_mon_mode_local_pkt_capture() - Check if in LPC mode
+ * @soc: DP SOC handle
+ *
+ * Return: True in case of LPC mode else false
+ *
+ */
+static inline bool
+dp_mon_mode_local_pkt_capture(struct dp_soc *soc)
+{
+	/* Currently there is no way to distinguish between
+	 * Local Packet Capture and STA+Mon mode as both mode
+	 * uses same monitor interface. So to distinguish between
+	 * two mode in local_packet_capture enable case use
+	 * mon_flags which can be passed during monitor interface
+	 * add time. If "flags otherbss" is passed during
+	 * monitor interface add driver will consider current mode
+	 * as STA+MON mode, LPC otherwise.
+	 */
+	if (wlan_cfg_get_local_pkt_capture(soc->wlan_cfg_ctx) &&
+	    !(soc->mon_flags & QDF_MONITOR_FLAG_OTHER_BSS))
+		return true;
+
+	return false;
+}
 #else
 static inline
 QDF_STATUS dp_local_pkt_capture_tx_config(struct dp_pdev *pdev)
 {
 	return QDF_STATUS_SUCCESS;
+}
+
+static inline bool
+dp_mon_mode_local_pkt_capture(struct dp_soc *soc)
+{
+	return false;
 }
 #endif
 
@@ -4923,6 +4955,21 @@ QDF_STATUS dp_local_pkt_capture_tx_config(struct dp_pdev *pdev)
 void
 dp_check_and_dump_full_mon_info(struct dp_soc *soc, struct dp_pdev *pdev,
 				int mac_id, int war);
+
+/**
+ * dp_mon_rx_ppdu_status_reset() - reset and clear ppdu rx status
+ * @mon_pdev: monitor pdev
+ *
+ * Return: none
+ */
+static inline void
+dp_mon_rx_ppdu_status_reset(struct dp_mon_pdev *mon_pdev)
+{
+	mon_pdev->mon_ppdu_status = DP_PPDU_STATUS_START;
+	mon_pdev->ppdu_info.com_info.num_users = 0;
+	qdf_mem_zero(&mon_pdev->ppdu_info.rx_status,
+		     sizeof(mon_pdev->ppdu_info.rx_status));
+}
 #else
 void
 dp_check_and_dump_full_mon_info(struct dp_soc *soc, struct dp_pdev *pdev,
@@ -4930,6 +4977,25 @@ dp_check_and_dump_full_mon_info(struct dp_soc *soc, struct dp_pdev *pdev,
 
 {
 }
+
+static inline void
+dp_mon_rx_ppdu_status_reset(struct dp_mon_pdev *mon_pdev)
+{
+}
 #endif
 
+static inline void
+dp_mon_pdev_filter_init(struct dp_mon_pdev *mon_pdev)
+{
+	if (!mon_pdev)
+		return;
+
+	mon_pdev->mon_filter_mode = MON_FILTER_ALL;
+	mon_pdev->fp_mgmt_filter = FILTER_MGMT_ALL;
+	mon_pdev->fp_ctrl_filter = FILTER_CTRL_ALL;
+	mon_pdev->fp_data_filter = FILTER_DATA_ALL;
+	mon_pdev->mo_mgmt_filter = FILTER_MGMT_ALL;
+	mon_pdev->mo_ctrl_filter = FILTER_CTRL_ALL;
+	mon_pdev->mo_data_filter = FILTER_DATA_ALL;
+}
 #endif /* _DP_MON_H_ */

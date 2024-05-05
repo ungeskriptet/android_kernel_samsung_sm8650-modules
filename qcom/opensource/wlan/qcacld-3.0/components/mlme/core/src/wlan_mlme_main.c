@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -69,9 +69,6 @@ void wlan_mlme_register_rx_ops(struct wlan_mlme_rx_ops *rx_ops)
 	rx_ops->peer_oper_mode_eventid = wlan_mlme_set_peer_indicated_ch_width;
 }
 
-#ifdef SEC_CONFIG_PSM_SYSFS
-extern int wlan_hdd_sec_get_psm(void);
-#endif /* SEC_CONFIG_PSM_SYSFS */
 struct wlan_mlme_psoc_ext_obj *mlme_get_psoc_ext_obj_fl(
 			       struct wlan_objmgr_psoc *psoc,
 			       const char *func, uint32_t line)
@@ -1110,12 +1107,6 @@ static void mlme_init_chainmask_cfg(struct wlan_objmgr_psoc *psoc,
 
 	chainmask_info->enable_bt_chain_separation =
 		cfg_get(psoc, CFG_ENABLE_BT_CHAIN_SEPARATION);
-#ifdef SEC_CONFIG_PSM_SYSFS
-	if (wlan_hdd_sec_get_psm()) {
-		chainmask_info->num_11b_tx_chains = 2;
-		printk("[WIFI] CFG_11B_NUM_TX_CHAIN : sec_control_psm = %u", chainmask_info->num_11b_tx_chains);
-	}
-#endif /* SEC_CONFIG_PSM_SYSFS */
 }
 
 static void mlme_init_ratemask_cfg(struct wlan_objmgr_psoc *psoc,
@@ -1162,6 +1153,20 @@ static void mlme_init_pmf_cfg(struct wlan_objmgr_psoc *psoc,
 	gen->pmf_sa_query_retry_interval =
 		cfg_get(psoc, CFG_PMF_SA_QUERY_RETRY_INTERVAL);
 }
+
+#ifdef WLAN_FEATURE_11BE
+static inline void mlme_init_oem_eht_mlo_cfg(struct wlan_objmgr_psoc *psoc,
+					     struct wlan_mlme_generic *gen)
+{
+	gen->oem_eht_mlo_crypto_bitmap =
+				cfg_get(psoc, CFG_OEM_EHT_MLO_CRYPTO_BITMAP);
+}
+#else
+static inline void mlme_init_oem_eht_mlo_cfg(struct wlan_objmgr_psoc *psoc,
+					     struct wlan_mlme_generic *gen)
+{
+}
+#endif /* WLAN_FEATURE_11BE */
 
 #ifdef WLAN_FEATURE_LPSS
 static inline void
@@ -1388,6 +1393,7 @@ static void mlme_init_generic_cfg(struct wlan_objmgr_psoc *psoc,
 		cfg_get(psoc, CFG_ENABLE_DEAUTH_TO_DISASSOC_MAP);
 	gen->wls_6ghz_capable = cfg_get(psoc, CFG_WLS_6GHZ_CAPABLE);
 	mlme_init_pmf_cfg(psoc, gen);
+	mlme_init_oem_eht_mlo_cfg(psoc, gen);
 	mlme_init_lpass_support_cfg(psoc, gen);
 	gen->enabled_rf_test_mode = cfg_default(CFG_RF_TEST_MODE_SUPP_ENABLED);
 	gen->enabled_11h = cfg_get(psoc, CFG_11H_SUPPORT_ENABLED);
@@ -1980,6 +1986,8 @@ static void mlme_init_feature_flag_in_cfg(
 			cfg_get(psoc, CFG_CHANNEL_BONDING_MODE_24GHZ);
 	feature_flags->channel_bonding_mode_5ghz =
 			cfg_get(psoc, CFG_CHANNEL_BONDING_MODE_5GHZ);
+	feature_flags->update_cw_allowed =
+			cfg_get(psoc, CFG_ALLOW_UPDATE_CHANNEL_WIDTH);
 }
 
 static void mlme_init_sap_protection_cfg(struct wlan_objmgr_psoc *psoc,
@@ -2207,6 +2215,9 @@ static void mlme_init_he_cap_in_cfg(struct wlan_objmgr_psoc *psoc,
 		QDF_GET_BITS(mcs_12_13,
 			     HE_MCS12_13_5G_INDEX * HE_MCS12_13_BITS,
 			     HE_MCS12_13_BITS);
+
+	mlme_cfg->he_caps.disable_sap_mcs_12_13 = cfg_get(psoc,
+						CFG_DISABLE_MCS_12_13_SAP);
 }
 #else
 static void mlme_init_he_cap_in_cfg(struct wlan_objmgr_psoc *psoc,
@@ -2566,13 +2577,18 @@ static void mlme_init_sta_mlo_cfg(struct wlan_objmgr_psoc *psoc,
 	sta->mlo_support_link_num =
 		cfg_get(psoc, CFG_MLO_SUPPORT_LINK_NUM);
 	sta->mlo_support_link_band =
-		cfg_default(CFG_MLO_SUPPORT_LINK_BAND);
+		cfg_get(psoc, CFG_MLO_SUPPORT_LINK_BAND);
 	sta->mlo_max_simultaneous_links =
 		cfg_default(CFG_MLO_MAX_SIMULTANEOUS_LINKS);
 	sta->mlo_prefer_percentage =
 		cfg_get(psoc, CFG_MLO_PREFER_PERCENTAGE);
 	sta->mlo_same_link_mld_address =
 		cfg_default(CFG_MLO_SAME_LINK_MLD_ADDR);
+	sta->mlo_5gl_5gh_mlsr =
+		cfg_get(psoc, CFG_MLO_MLO_5GL_5GH_MLSR);
+
+	mlme_debug("mlo_support_link_num: %d, mlo_support_link_band: 0x%x",
+		   sta->mlo_support_link_num, sta->mlo_support_link_band);
 }
 
 static bool
@@ -2822,12 +2838,6 @@ mlme_init_adaptive_11r_cfg(struct wlan_objmgr_psoc *psoc,
 			   struct wlan_mlme_lfr_cfg *lfr)
 {
 	lfr->enable_adaptive_11r = cfg_get(psoc, CFG_ADAPTIVE_11R);
-#ifdef SEC_CONFIG_PSM_SYSFS
-	if (wlan_hdd_sec_get_psm()) {
-		lfr->enable_adaptive_11r = 0;
-		printk("[WIFI] CFG_ADAPTIVE_11R : sec_control_psm = %d", lfr->enable_adaptive_11r);
-	}
-#endif /* SEC_CONFIG_PSM_SYSFS */
 }
 
 #else
@@ -2903,18 +2913,6 @@ static void mlme_init_roam_offload_cfg(struct wlan_objmgr_psoc *psoc,
 	lfr->idle_roam_band = cfg_get(psoc, CFG_LFR_IDLE_ROAM_BAND);
 	lfr->sta_roam_disable = cfg_get(psoc, CFG_STA_DISABLE_ROAM);
 	mlme_init_sae_single_pmk_cfg(psoc, lfr);
-#ifdef SEC_CONFIG_PSM_SYSFS
-	if (wlan_hdd_sec_get_psm()) {
-		lfr->enable_idle_roam = 0;
-		printk("[WIFI] CFG_LFR_ENABLE_IDLE_ROAM : sec_control_psm = %d", lfr->enable_idle_roam);
-
-		lfr->enable_disconnect_roam_offload = 0;
-		printk("[WIFI] CFG_LFR_ENABLE_DISCONNECT_ROAM : sec_control_psm = %d", lfr->enable_disconnect_roam_offload);
-
-		lfr->lfr3_roaming_offload = 0;
-		printk("[WIFI] CFG_LFR3_ROAMING_OFFLOAD : sec_control_psm = %d", lfr->lfr3_roaming_offload);
-	}
-#endif /* SEC_CONFIG_PSM_SYSFS */
 	qdf_mem_zero(&lfr->roam_rt_stats, sizeof(lfr->roam_rt_stats));
 }
 
@@ -3036,12 +3034,6 @@ mlme_init_bss_load_trigger_params(struct wlan_objmgr_psoc *psoc,
 			cfg_get(psoc, CFG_BSS_LOAD_TRIG_5G_RSSI_THRES);
 	bss_load_trig->rssi_threshold_24ghz =
 			cfg_get(psoc, CFG_BSS_LOAD_TRIG_2G_RSSI_THRES);
-#ifdef SEC_CONFIG_PSM_SYSFS
-	if (wlan_hdd_sec_get_psm()) {
-		bss_load_trig->enabled = 0;
-		printk("[WIFI] CFG_ENABLE_BSS_LOAD_TRIGGERED_ROAM : sec_control_psm = %d", bss_load_trig->enabled);
-	}
-#endif /* SEC_CONFIG_PSM_SYSFS */
 }
 
 void mlme_reinit_control_config_lfr_params(struct wlan_objmgr_psoc *psoc,
@@ -3273,28 +3265,9 @@ static void mlme_init_lfr_cfg(struct wlan_objmgr_psoc *psoc,
 	mlme_init_adaptive_11r_cfg(psoc, lfr);
 	mlme_init_subnet_detection(psoc, lfr);
 	lfr->rso_user_config.cat_rssi_offset = DEFAULT_RSSI_DB_GAP;
-#ifdef SEC_CONFIG_PSM_SYSFS
-	if (wlan_hdd_sec_get_psm()) {
-		lfr->lfr_enabled = 0;
-		printk("[WIFI] CFG_LFR_FEATURE_ENABLED : sec_control_psm = %d", lfr->lfr_enabled);
-
-		lfr->roam_force_rssi_trigger = 0;
-		printk("[WIFI] CFG_LFR_ROAM_FORCE_RSSI_TRIGGER : sec_control_psm = %d", lfr->roam_force_rssi_trigger);
-
-		lfr->enable_fast_roam_in_concurrency = 0;
-		printk("[WIFI] CFG_LFR_ENABLE_FAST_ROAM_IN_CONCURRENCY : sec_control_psm = %d", lfr->enable_fast_roam_in_concurrency);
-
-		lfr->roam_scan_offload_enabled = 0;
-		printk("[WIFI] CFG_LFR_ROAM_SCAN_OFFLOAD_ENABLED : sec_control_psm = %d", lfr->roam_scan_offload_enabled);
-
-        lfr->roam_bmiss_first_bcnt = 100;
-		printk("[WIFI] CFG_LFR_ROAM_BMISS_FIRST_BCNT : sec_control_psm = %d", lfr->roam_bmiss_first_bcnt);
-
-		lfr->roam_bmiss_final_bcnt = 100;
-		printk("[WIFI] CFG_LFR_ROAM_BMISS_FINAL_BCNT : sec_control_psm = %d", lfr->roam_bmiss_final_bcnt);
-	}
-#endif /* SEC_CONFIG_PSM_SYSFS */
 	mlme_init_bmiss_timeout(psoc, lfr);
+	lfr->hs20_btm_offload_disable = cfg_get(psoc,
+						CFG_HS_20_BTM_OFFLOAD_DISABLE);
 }
 
 static void mlme_init_power_cfg(struct wlan_objmgr_psoc *psoc,
@@ -3454,8 +3427,8 @@ mlme_init_wifi_pos_11az_config(struct wlan_objmgr_psoc *psoc,
 {
 	bool rsta_sec_ltf_enabled =
 			cfg_get(psoc, CFG_RESPONDER_SECURE_LTF_SUPPORT);
-	bool rsta_11az_ranging_enabled = cfg_get(psoc,
-						 CFG_RESPONDER_11AZ_SUPPORT);
+	uint32_t rsta_11az_ranging_enabled =
+				cfg_get(psoc, CFG_RESPONDER_11AZ_SUPPORT);
 
 	wifi_pos_set_rsta_11az_ranging_cap(rsta_11az_ranging_enabled);
 	wifi_pos_set_rsta_sec_ltf_cap(rsta_sec_ltf_enabled);
@@ -3610,11 +3583,7 @@ static void mlme_init_btm_cfg(struct wlan_objmgr_psoc *psoc,
 		MLME_SET_BIT(btm->btm_offload_config, BTM_OFFLOAD_CONFIG_BIT_8);
 
 	btm->abridge_flag = cfg_get(psoc, CFG_ENABLE_BTM_ABRIDGE);
-#ifdef SEC_CONFIG_PSM_SYSFS
-	if (btm->abridge_flag && !wlan_hdd_sec_get_psm())
-#else /* SEC_CONFIG_PSM_SYSFS */
 	if (btm->abridge_flag)
-#endif /* !SEC_CONFIG_PSM_SYSFS */
 		MLME_SET_BIT(btm->btm_offload_config, BTM_OFFLOAD_CONFIG_BIT_7);
 	wlan_mlme_set_btm_abridge_flag(psoc, btm->abridge_flag);
 
@@ -3627,12 +3596,6 @@ static void mlme_init_btm_cfg(struct wlan_objmgr_psoc *psoc,
 	btm->btm_query_bitmask = cfg_get(psoc, CFG_BTM_QUERY_BITMASK);
 	btm->btm_trig_min_candidate_score =
 			cfg_get(psoc, CFG_MIN_BTM_CANDIDATE_SCORE);
-#ifdef SEC_CONFIG_PSM_SYSFS
-	if (wlan_hdd_sec_get_psm()) {
-		btm->abridge_flag = 0;
-		printk("[WIFI] CFG_ENABLE_BTM_ABRIDGE : sec_control_psm = %u", btm->abridge_flag = 0);
-	}
-#endif /* SEC_CONFIG_PSM_SYSFS */
 }
 
 static void
@@ -3810,14 +3773,6 @@ static void mlme_init_powersave_params(struct wlan_objmgr_psoc *psoc,
 	ps_cfg->bmps_max_listen_interval = cfg_get(psoc, CFG_BMPS_MAXIMUM_LI);
 	ps_cfg->dtim_selection_diversity =
 				cfg_get(psoc, CFG_DTIM_SELECTION_DIVERSITY);
-#ifdef SEC_CONFIG_PSM_SYSFS
-	if (wlan_hdd_sec_get_psm()) {
-		ps_cfg->is_imps_enabled = 0;
-		ps_cfg->is_bmps_enabled = 0;
-		printk("[WIFI] CFG_ENABLE_IMPS : sec_control_psm = %d", ps_cfg->is_imps_enabled);
-		printk("[WIFI] CFG_ENABLE_PS : sec_control_psm = %d", ps_cfg->is_bmps_enabled);
-	}
-#endif /* SEC_CONFIG_PSM_SYSFS */
 }
 
 #if defined(CONFIG_AFC_SUPPORT) && defined(CONFIG_BAND_6GHZ)
@@ -5756,3 +5711,46 @@ wlan_mlme_send_csa_event_status_ind_cmd(struct wlan_objmgr_vdev *vdev,
 	return tx_ops->send_csa_event_status_ind(vdev, csa_status);
 }
 
+uint8_t
+wlan_mlme_get_sap_psd_for_20mhz(struct wlan_objmgr_vdev *vdev)
+{
+	struct mlme_legacy_priv *mlme_priv;
+	enum QDF_OPMODE opmode = QDF_MAX_NO_OF_MODE;
+
+	mlme_priv = wlan_vdev_mlme_get_ext_hdl(vdev);
+	if (!mlme_priv) {
+		mlme_legacy_err("vdev legacy private object is NULL");
+		return 0;
+	}
+
+	opmode = wlan_vdev_mlme_get_opmode(vdev);
+	if (opmode != QDF_SAP_MODE) {
+		mlme_debug("Invalid opmode %d", opmode);
+		return 0;
+	}
+
+	return mlme_priv->mlme_ap.psd_20mhz;
+}
+
+QDF_STATUS
+wlan_mlme_set_sap_psd_for_20mhz(struct wlan_objmgr_vdev *vdev,
+				uint8_t psd_power)
+{
+	struct mlme_legacy_priv *mlme_priv;
+	enum QDF_OPMODE opmode = QDF_MAX_NO_OF_MODE;
+
+	mlme_priv = wlan_vdev_mlme_get_ext_hdl(vdev);
+	if (!mlme_priv) {
+		mlme_legacy_err("vdev legacy private object is NULL");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	opmode = wlan_vdev_mlme_get_opmode(vdev);
+	if (opmode != QDF_SAP_MODE) {
+		mlme_debug("Invalid opmode %d", opmode);
+		return QDF_STATUS_E_INVAL;
+	}
+
+	mlme_priv->mlme_ap.psd_20mhz = psd_power;
+	return QDF_STATUS_SUCCESS;
+}

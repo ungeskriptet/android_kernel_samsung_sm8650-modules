@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -585,7 +585,7 @@ struct register_mgmt_frame {
 	bool registerFrame;
 	uint16_t frameType;
 	uint16_t matchLen;
-	uint8_t matchData[1];
+	QDF_FLEX_ARRAY(uint8_t, matchData);
 };
 
 /* / Generic type for sending a response message */
@@ -640,6 +640,22 @@ typedef QDF_STATUS
 		     uint8_t session_id, uint8_t reason,
 		     enum wlan_cm_rso_control_requestor requestor);
 
+/**
+ * typedef set_ies_fn_t - Set IEs routine pointer
+ * @mac_ctx: Global MAC context
+ * @vdev_id: vdev id
+ * @dot11_mode: dot11 mode
+ * @opmode: device opmode
+ *
+ * This type is for callbacks registered with WMA to set the IEs for a
+ * given vdev id to the firmware.
+ *
+ * Return: Success or Failure
+ */
+typedef QDF_STATUS
+(*set_ies_fn_t)(struct mac_context *mac_ctx, uint8_t vdev_id,
+		uint16_t dot11_mode, enum QDF_OPMODE device_mode);
+
 /* / Definition for indicating all modules ready on STA */
 struct sme_ready_req {
 	uint16_t messageType;   /* eWNI_SME_SYS_READY_IND */
@@ -657,6 +673,7 @@ struct sme_ready_req {
 					uint8_t *deauth_disassoc_frame,
 					uint16_t deauth_disassoc_frame_len,
 					uint16_t reason_code);
+	set_ies_fn_t pe_roam_set_ie_cb;
 };
 
 /**
@@ -823,7 +840,7 @@ struct bss_description {
 	uint32_t is_single_pmk;
 #endif
 	/* Please keep the structure 4 bytes aligned above the ieFields */
-	uint32_t ieFields[1];
+	QDF_FLEX_ARRAY(uint32_t, ieFields);
 };
 
 /* / Definition for response message to previously */
@@ -1787,7 +1804,7 @@ typedef struct sSirSmeMgmtFrameInd {
 	uint8_t frameType;
 	int8_t rxRssi;
 	enum rxmgmt_flags rx_flags;
-	uint8_t frameBuf[1];    /* variable */
+	QDF_FLEX_ARRAY(uint8_t, frameBuf);
 } tSirSmeMgmtFrameInd, *tpSirSmeMgmtFrameInd;
 
 typedef void (*sir_mgmt_frame_ind_callback)(tSirSmeMgmtFrameInd *frame_ind);
@@ -1809,7 +1826,7 @@ typedef struct sSirSmeUnprotMgmtFrameInd {
 	uint8_t sessionId;
 	uint8_t frameType;
 	uint8_t frameLen;
-	uint8_t frameBuf[1];    /* variable */
+	QDF_FLEX_ARRAY(uint8_t, frameBuf);
 } tSirSmeUnprotMgmtFrameInd, *tpSirSmeUnprotMgmtFrameInd;
 
 #ifdef WLAN_FEATURE_EXTWOW_SUPPORT
@@ -2129,7 +2146,7 @@ typedef struct sSirUpdateChan {
 	uint8_t vht_24_en;
 	bool he_en;
 	bool eht_en;
-	tSirUpdateChanParam chanParam[1];
+	QDF_FLEX_ARRAY(tSirUpdateChanParam, chanParam);
 } tSirUpdateChanList, *tpSirUpdateChanList;
 
 typedef enum eSirAddonPsReq {

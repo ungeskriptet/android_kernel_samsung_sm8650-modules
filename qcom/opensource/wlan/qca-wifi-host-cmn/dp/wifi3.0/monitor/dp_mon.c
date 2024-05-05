@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -2170,6 +2170,10 @@ void dp_peer_update_telemetry_stats(struct dp_soc *soc,
 	struct dp_mon_peer *mon_peer = NULL;
 	uint8_t ac;
 	uint64_t current_time = qdf_get_log_timestamp();
+	uint32_t remn, time_diff, usage;
+	uint16_t usage_per_sec;
+	struct dp_mon_peer_airtime_stats *stat_airtime;
+	struct dp_mon_peer_airtime_consumption *consump;
 
 	vdev = peer->vdev;
 	if (!vdev)
@@ -2181,29 +2185,57 @@ void dp_peer_update_telemetry_stats(struct dp_soc *soc,
 
 	mon_peer = peer->monitor_peer;
 	if (qdf_likely(mon_peer)) {
+		stat_airtime = &mon_peer->stats.airtime_stats;
+		time_diff = (uint32_t)(current_time -
+					stat_airtime->last_update_time);
 		for (ac = 0; ac < WME_AC_MAX; ac++) {
-			mon_peer->stats.airtime_stats.tx_airtime_consumption[ac].avg_consumption_per_sec =
-				(uint8_t)qdf_do_div((uint64_t)(mon_peer->stats.airtime_stats.tx_airtime_consumption[ac].consumption * 100),
-						    (uint32_t)(current_time - mon_peer->stats.airtime_stats.last_update_time));
-			mon_peer->stats.airtime_stats.rx_airtime_consumption[ac].avg_consumption_per_sec =
-				(uint8_t)qdf_do_div((uint64_t)(mon_peer->stats.airtime_stats.rx_airtime_consumption[ac].consumption * 100),
-						    (uint32_t)(current_time - mon_peer->stats.airtime_stats.last_update_time));
+			consump = &stat_airtime->tx_airtime_consumption[ac];
+			usage = consump->consumption;
+			usage_per_sec = (uint8_t)qdf_do_div((uint64_t)
+						(usage * 100), time_diff);
+			remn = qdf_do_div_rem((uint64_t)
+						(usage * 100), time_diff);
+			if (remn < time_diff / 2) {
+				if (remn && usage_per_sec == 0)
+					usage_per_sec++;
+			} else {
+				if (usage_per_sec < 100)
+					usage_per_sec++;
+			}
+			consump->avg_consumption_per_sec = usage_per_sec;
 			/* Store each peer airtime consumption in pdev
 			 * link_airtime to calculate pdev's total airtime
 			 * consumption
 			 */
-			DP_STATS_INC(
-				pdev,
-				telemetry_stats.link_airtime[ac],
-				mon_peer->stats.airtime_stats.tx_airtime_consumption[ac].consumption);
-			DP_STATS_INC(
-				pdev,
-				telemetry_stats.link_airtime[ac],
-				mon_peer->stats.airtime_stats.rx_airtime_consumption[ac].consumption);
-			mon_peer->stats.airtime_stats.tx_airtime_consumption[ac].consumption = 0;
-			mon_peer->stats.airtime_stats.rx_airtime_consumption[ac].consumption = 0;
+			DP_STATS_INC(pdev,
+				     telemetry_stats.link_airtime[ac],
+				     consump->consumption);
+			consump->consumption = 0;
+
+			consump = &stat_airtime->rx_airtime_consumption[ac];
+			usage = consump->consumption;
+			usage_per_sec = (uint8_t)qdf_do_div((uint64_t)
+						(usage * 100), time_diff);
+			remn = qdf_do_div_rem((uint64_t)
+						(usage * 100), time_diff);
+			if (remn < time_diff / 2) {
+				if (remn && usage_per_sec == 0)
+					usage_per_sec++;
+			} else {
+				if (usage_per_sec < 100)
+					usage_per_sec++;
+			}
+			consump->avg_consumption_per_sec = usage_per_sec;
+			/* Store each peer airtime consumption in pdev
+			 * link_airtime to calculate pdev's total airtime
+			 * consumption
+			 */
+			DP_STATS_INC(pdev,
+				     telemetry_stats.link_airtime[ac],
+				     consump->consumption);
+			consump->consumption = 0;
 		}
-		mon_peer->stats.airtime_stats.last_update_time = current_time;
+		stat_airtime->last_update_time = current_time;
 	}
 }
 
@@ -5856,20 +5888,6 @@ QDF_STATUS dp_mon_pdev_detach(struct dp_pdev *pdev)
 	dp_context_free_mem(pdev->soc, DP_MON_PDEV_TYPE, mon_pdev);
 	pdev->monitor_pdev = NULL;
 	return QDF_STATUS_SUCCESS;
-}
-
-static void dp_mon_pdev_filter_init(struct dp_mon_pdev *mon_pdev)
-{
-	if (!mon_pdev)
-		return;
-
-	mon_pdev->mon_filter_mode = MON_FILTER_ALL;
-	mon_pdev->fp_mgmt_filter = FILTER_MGMT_ALL;
-	mon_pdev->fp_ctrl_filter = FILTER_CTRL_ALL;
-	mon_pdev->fp_data_filter = FILTER_DATA_ALL;
-	mon_pdev->mo_mgmt_filter = FILTER_MGMT_ALL;
-	mon_pdev->mo_ctrl_filter = FILTER_CTRL_ALL;
-	mon_pdev->mo_data_filter = FILTER_DATA_ALL;
 }
 
 #ifdef WLAN_TX_PKT_CAPTURE_ENH

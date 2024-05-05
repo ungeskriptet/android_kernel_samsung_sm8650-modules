@@ -316,9 +316,9 @@ static inline QDF_STATUS hal_write32_mb_confirm(struct hal_soc *hal_soc,
 static inline void hal_write32_mb(struct hal_soc *hal_soc, uint32_t offset,
 				  uint32_t value)
 {
-	int ret;
 	unsigned long flags;
 	qdf_iomem_t new_addr;
+	bool init_phase;
 
 	if (!TARGET_ACCESS_ALLOWED(HIF_GET_SOFTC(
 					hal_soc->hif_handle))) {
@@ -332,14 +332,13 @@ static inline void hal_write32_mb(struct hal_soc *hal_soc, uint32_t offset,
 		return;
 	}
 
+	init_phase = hal_soc->init_phase;
+
 	/* Region greater than BAR + 4K */
-	if (!hal_soc->init_phase) {
-		ret = hif_force_wake_request(hal_soc->hif_handle);
-		if (ret) {
-			hal_err_rl("Wake up request failed");
-			qdf_check_state_before_panic(__func__, __LINE__);
-			return;
-		}
+	if (!init_phase && hif_force_wake_request(hal_soc->hif_handle)) {
+		hal_err_rl("Wake up request failed");
+		qdf_check_state_before_panic(__func__, __LINE__);
+		return;
 	}
 
 	if (!hal_soc->use_register_windowing ||
@@ -358,13 +357,10 @@ static inline void hal_write32_mb(struct hal_soc *hal_soc, uint32_t offset,
 		hal_unlock_reg_access(hal_soc, &flags);
 	}
 
-	if (!hal_soc->init_phase) {
-		ret = hif_force_wake_release(hal_soc->hif_handle);
-		if (ret) {
-			hal_err("Wake up release failed");
-			qdf_check_state_before_panic(__func__, __LINE__);
-			return;
-		}
+	if (!init_phase && hif_force_wake_release(hal_soc->hif_handle)) {
+		hal_err("Wake up release failed");
+		qdf_check_state_before_panic(__func__, __LINE__);
+		return;
 	}
 }
 
@@ -380,10 +376,10 @@ static inline QDF_STATUS hal_write32_mb_confirm(struct hal_soc *hal_soc,
 						uint32_t offset,
 						uint32_t value)
 {
-	int ret;
 	unsigned long flags;
 	qdf_iomem_t new_addr;
 	QDF_STATUS status = QDF_STATUS_E_FAILURE;
+	bool init_phase;
 
 	if (!TARGET_ACCESS_ALLOWED(HIF_GET_SOFTC(
 					hal_soc->hif_handle))) {
@@ -397,14 +393,13 @@ static inline QDF_STATUS hal_write32_mb_confirm(struct hal_soc *hal_soc,
 		return QDF_STATUS_E_NOSUPPORT;
 	}
 
+	init_phase = hal_soc->init_phase;
+
 	/* Region greater than BAR + 4K */
-	if (!hal_soc->init_phase) {
-		ret = hif_force_wake_request(hal_soc->hif_handle);
-		if (ret) {
-			hal_err("Wake up request failed");
-			qdf_check_state_before_panic(__func__, __LINE__);
-			return status;
-		}
+	if (!init_phase && hif_force_wake_request(hal_soc->hif_handle)) {
+		hal_err("Wake up request failed");
+		qdf_check_state_before_panic(__func__, __LINE__);
+		return status;
 	}
 
 	if (!hal_soc->use_register_windowing ||
@@ -434,13 +429,10 @@ static inline QDF_STATUS hal_write32_mb_confirm(struct hal_soc *hal_soc,
 		hal_unlock_reg_access(hal_soc, &flags);
 	}
 
-	if (!hal_soc->init_phase) {
-		ret = hif_force_wake_release(hal_soc->hif_handle);
-		if (ret) {
-			hal_err("Wake up release failed");
-			qdf_check_state_before_panic(__func__, __LINE__);
-			return QDF_STATUS_E_INVAL;
-		}
+	if (!init_phase && hif_force_wake_release(hal_soc->hif_handle)) {
+		hal_err("Wake up release failed");
+		qdf_check_state_before_panic(__func__, __LINE__);
+		return QDF_STATUS_E_INVAL;
 	}
 
 	return status;
@@ -589,6 +581,7 @@ uint32_t hal_read32_mb(struct hal_soc *hal_soc, uint32_t offset)
 	uint32_t ret;
 	unsigned long flags;
 	qdf_iomem_t new_addr;
+	bool init_phase;
 
 	if (!TARGET_ACCESS_ALLOWED(HIF_GET_SOFTC(
 					hal_soc->hif_handle))) {
@@ -600,8 +593,8 @@ uint32_t hal_read32_mb(struct hal_soc *hal_soc, uint32_t offset)
 	if (offset < MAPPED_REF_OFF)
 		return qdf_ioread32(hal_soc->dev_base_addr + offset);
 
-	if ((!hal_soc->init_phase) &&
-	    hif_force_wake_request(hal_soc->hif_handle)) {
+	init_phase = hal_soc->init_phase;
+	if (!init_phase && hif_force_wake_request(hal_soc->hif_handle)) {
 		hal_err("Wake up request failed");
 		qdf_check_state_before_panic(__func__, __LINE__);
 		return 0;
@@ -623,8 +616,7 @@ uint32_t hal_read32_mb(struct hal_soc *hal_soc, uint32_t offset)
 		hal_unlock_reg_access(hal_soc, &flags);
 	}
 
-	if ((!hal_soc->init_phase) &&
-	    hif_force_wake_release(hal_soc->hif_handle)) {
+	if (!init_phase && hif_force_wake_release(hal_soc->hif_handle)) {
 		hal_err("Wake up release failed");
 		qdf_check_state_before_panic(__func__, __LINE__);
 		return 0;
@@ -882,6 +874,27 @@ static inline void hal_dump_reg_write_stats(hal_soc_handle_t hal_soc_hdl)
 static inline int hal_get_reg_write_pending_work(void *hal_soc)
 {
 	return 0;
+}
+#endif
+
+#if defined(FEATURE_HAL_DELAYED_REG_WRITE) && defined(QCA_WIFI_QCA6750)
+/**
+ * hal_srng_check_and_update_hptp() - Check and force update HP/TP
+ *		to the hardware
+ * @hal_soc: HAL soc handle
+ * @srng: SRNG handle
+ * @update: Whether or not update is needed
+ *
+ * Returns: void
+ */
+void hal_srng_check_and_update_hptp(struct hal_soc *hal_soc,
+				    struct hal_srng *srng,
+				    bool update);
+#else
+static inline void
+hal_srng_check_and_update_hptp(struct hal_soc *hal_soc, struct hal_srng *srng,
+			       bool update)
+{
 }
 #endif
 
@@ -1301,6 +1314,16 @@ void hal_srng_dst_set_hp_paddr_confirm(struct hal_srng *sring,
 void hal_srng_dst_init_hp(struct hal_soc_handle *hal_soc,
 			  struct hal_srng *srng,
 			  uint32_t *vaddr);
+
+/**
+ * hal_srng_dst_update_hp_addr() - Update hp_addr with current HW HP value
+ * @hal_soc: hal_soc handle
+ * @hal_ring_hdl: Opaque HAL SRNG pointer
+ *
+ * Return: None
+ */
+void hal_srng_dst_update_hp_addr(struct hal_soc_handle *hal_soc,
+				 hal_ring_handle_t hal_ring_hdl);
 
 /**
  * hal_srng_cleanup() - Deinitialize HW SRNG ring.

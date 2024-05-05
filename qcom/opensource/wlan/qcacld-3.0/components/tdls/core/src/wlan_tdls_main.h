@@ -473,6 +473,8 @@ wlan_vdev_get_tdls_vdev_obj(struct wlan_objmgr_vdev *vdev)
  * @mac: mac address of tdls peer
  * @link_state: tdls link state
  * @link_reason: reason
+ *
+ * Return: None
  */
 void tdls_set_link_status(struct tdls_vdev_priv_obj *vdev,
 			  const uint8_t *mac,
@@ -616,6 +618,25 @@ QDF_STATUS tdls_notify_sta_connect(struct tdls_sta_notify_params *notify);
  * Return: void
  */
 void tdls_process_enable_for_vdev(struct wlan_objmgr_vdev *vdev);
+
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * tdls_process_enable_disable_for_ml_vdev() - Enable TDLS in firmware & active
+ * connection tracker for all the ML vdevs belonging to same MLD as the
+ * given vdev
+ * @vdev: Pointer to vdev object
+ * @is_enable: Flag to indicate if operation is enable TDLS or disable TDLS
+ *
+ * Return: None
+ */
+void tdls_process_enable_disable_for_ml_vdev(struct wlan_objmgr_vdev *vdev,
+					     bool is_enable);
+#else
+static inline
+void tdls_process_enable_disable_for_ml_vdev(struct wlan_objmgr_vdev *vdev,
+					     bool is_enable)
+{}
+#endif
 
 /**
  * tdls_notify_sta_disconnect() - Update tdls state for every

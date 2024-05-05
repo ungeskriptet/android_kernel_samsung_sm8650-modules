@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -787,6 +787,9 @@ QDF_STATUS wlan_cm_roam_cfg_get_value(struct wlan_objmgr_psoc *psoc,
 	case RSSI_CHANGE_THRESHOLD:
 		dst_config->int_value = rso_cfg->rescan_rssi_delta;
 		break;
+	case IS_DISABLE_BTM:
+		dst_config->bool_value = rso_cfg->is_disable_btm;
+		break;
 	case BEACON_RSSI_WEIGHT:
 		dst_config->uint_value = rso_cfg->beacon_rssi_weight;
 		break;
@@ -1298,6 +1301,9 @@ wlan_cm_roam_cfg_set_value(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id,
 	case RSSI_CHANGE_THRESHOLD:
 		rso_cfg->rescan_rssi_delta  = src_config->uint_value;
 		break;
+	case IS_DISABLE_BTM:
+		rso_cfg->is_disable_btm  = src_config->bool_value;
+		break;
 	case BEACON_RSSI_WEIGHT:
 		rso_cfg->beacon_rssi_weight = src_config->uint_value;
 		break;
@@ -1623,6 +1629,7 @@ QDF_STATUS wlan_cm_rso_config_init(struct wlan_objmgr_vdev *vdev,
 
 	ucfg_reg_get_band(wlan_vdev_get_pdev(vdev), &current_band);
 	rso_cfg->roam_band_bitmask = current_band;
+	rso_cfg->is_disable_btm = false;
 
 	return status;
 }
@@ -1652,6 +1659,7 @@ void wlan_cm_rso_config_deinit(struct wlan_objmgr_vdev *vdev,
 	cm_flush_roam_channel_list(&cfg_params->pref_chan_info);
 
 	qdf_mutex_destroy(&rso_cfg->cm_rso_lock);
+	rso_cfg->is_disable_btm = false;
 
 	cm_deinit_reassoc_timer(rso_cfg);
 }
@@ -2333,6 +2341,16 @@ QDF_STATUS wlan_cm_set_roam_band_bitmask(struct wlan_objmgr_psoc *psoc,
 
 	src_config.uint_value = roam_band_bitmask;
 	return wlan_cm_roam_cfg_set_value(psoc, vdev_id, ROAM_BAND,
+					  &src_config);
+}
+
+QDF_STATUS wlan_cm_set_btm_config(struct wlan_objmgr_psoc *psoc,
+				  uint8_t vdev_id, bool is_disable_btm)
+{
+	struct cm_roam_values_copy src_config = {};
+
+	src_config.bool_value = is_disable_btm;
+	return wlan_cm_roam_cfg_set_value(psoc, vdev_id, IS_DISABLE_BTM,
 					  &src_config);
 }
 
@@ -4010,18 +4028,24 @@ wlan_cm_update_roam_scan_info(struct wlan_objmgr_vdev *vdev,
 
 /**
  * wlan_cm_roam_frame_subtype() - Convert roam host enum
+ * @frame: Roam frame info
  * @frame_type: roam frame type
  *
  * Return: Roam frame type defined in host driver
  */
 static enum eroam_frame_subtype
-wlan_cm_roam_frame_subtype(uint8_t frame_type)
+wlan_cm_roam_frame_subtype(struct roam_frame_info *frame, uint8_t frame_type)
 {
 	switch (frame_type) {
 	case MGMT_SUBTYPE_AUTH:
-		return WLAN_ROAM_STATS_FRAME_SUBTYPE_PREAUTH;
+		if (frame->is_rsp)
+			return WLAN_ROAM_STATS_FRAME_SUBTYPE_AUTH_RESP;
+		else
+			return WLAN_ROAM_STATS_FRAME_SUBTYPE_AUTH_REQ;
+	case MGMT_SUBTYPE_REASSOC_REQ:
+		return WLAN_ROAM_STATS_FRAME_SUBTYPE_REASSOC_REQ;
 	case MGMT_SUBTYPE_REASSOC_RESP:
-		return WLAN_ROAM_STATS_FRAME_SUBTYPE_REASSOC;
+		return WLAN_ROAM_STATS_FRAME_SUBTYPE_REASSOC_RESP;
 	case ROAM_FRAME_SUBTYPE_M1:
 		return WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_M1;
 	case ROAM_FRAME_SUBTYPE_M2:
@@ -4035,33 +4059,23 @@ wlan_cm_roam_frame_subtype(uint8_t frame_type)
 	case ROAM_FRAME_SUBTYPE_GTK_M2:
 		return WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_GTK_M2;
 	default:
-		return WLAN_ROAM_STATS_FRAME_SUBTYPE_PREAUTH;
+		return WLAN_ROAM_STATS_FRAME_SUBTYPE_AUTH_REQ;
 	}
 }
 
-static uint8_t
-wlan_cm_get_index_from_frame_type(struct roam_frame_info *frame)
+static bool
+wlan_cm_get_valid_frame_type(struct roam_frame_info *frame)
 {
-	uint8_t index;
-
-	if (frame->subtype == MGMT_SUBTYPE_AUTH && frame->is_rsp) {
-		index = WLAN_ROAM_STATS_FRAME_SUBTYPE_PREAUTH - 1;
-	} else if (frame->subtype == MGMT_SUBTYPE_REASSOC_RESP) {
-		index = WLAN_ROAM_STATS_FRAME_SUBTYPE_REASSOC - 1;
-	} else if (frame->subtype == ROAM_FRAME_SUBTYPE_M1) {
-		index = WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_M1 - 1;
-	} else if (frame->subtype == ROAM_FRAME_SUBTYPE_M2) {
-		index = WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_M2 - 1;
-	} else if (frame->subtype == ROAM_FRAME_SUBTYPE_M3) {
-		index = WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_M3 - 1;
-	} else if (frame->subtype == ROAM_FRAME_SUBTYPE_M4) {
-		index = WLAN_ROAM_STATS_FRAME_SUBTYPE_EAPOL_M4 - 1;
-	} else {
-		mlme_err("Invalid subtype: %d", frame->subtype);
-		index =  ROAM_FRAME_NUM;
-	}
-
-	return index;
+	if (frame->subtype == MGMT_SUBTYPE_AUTH ||
+	    frame->subtype == MGMT_SUBTYPE_REASSOC_REQ ||
+	    frame->subtype == MGMT_SUBTYPE_REASSOC_RESP ||
+	    frame->subtype == ROAM_FRAME_SUBTYPE_M1 ||
+	    frame->subtype == ROAM_FRAME_SUBTYPE_M2 ||
+	    frame->subtype == ROAM_FRAME_SUBTYPE_M3 ||
+	    frame->subtype == ROAM_FRAME_SUBTYPE_M4)
+		return true;
+	else
+		return false;
 }
 
 /**
@@ -4080,35 +4094,40 @@ wlan_cm_update_roam_frame_info(struct mlme_legacy_priv *mlme_priv,
 			       struct roam_frame_stats *frame_data)
 {
 	struct enhance_roam_info *info;
-	uint32_t i, j, index;
+	uint32_t index, i, j = 0;
 	uint8_t subtype;
 
 	index = mlme_priv->roam_write_index;
 	info = &mlme_priv->roam_info[index];
 
 	for (i = 0; i < frame_data->num_frame; i++) {
-		j = wlan_cm_get_index_from_frame_type(&frame_data->frame_info[i]);
-
-		if (j == ROAM_FRAME_NUM)
+		if (!wlan_cm_get_valid_frame_type(&frame_data->frame_info[i]))
 			continue;
-
+		j++;
+		if (j >= WLAN_ROAM_MAX_FRAME_INFO)
+			break;
 		/*
-		 * fill frame info into roam buffer from zero
-		 * only need preauth/reassoc/EAPOL-M1/M2/M3/M4
-		 * types of frame cache in driver.
+		 * fill frame preauth req/rsp, reassoc req/rsp
+		 * and EAPOL-M1/M2/M3/M4 into roam buffer
 		 */
 		subtype = frame_data->frame_info[i].subtype;
 		info->timestamp[j].frame_type =
-			wlan_cm_roam_frame_subtype(subtype);
+			wlan_cm_roam_frame_subtype(&frame_data->frame_info[i],
+						   subtype);
 		info->timestamp[j].timestamp =
 			frame_data->frame_info[i].timestamp;
 		info->timestamp[j].status =
 			frame_data->frame_info[i].status_code;
 
-		mlme_debug("frame:subtype %x time %llu status:%u, index:%u",
-			   info->timestamp[j].frame_type,
+		qdf_mem_copy(info->timestamp[j].bssid.bytes,
+			     frame_data->frame_info[i].bssid.bytes,
+			     QDF_MAC_ADDR_SIZE);
+
+		mlme_debug("frame:idx:%u subtype:%x time:%llu status:%u AP BSSID" QDF_MAC_ADDR_FMT,
+			   j, info->timestamp[j].frame_type,
 			   info->timestamp[j].timestamp,
-			   info->timestamp[j].status, j);
+			   info->timestamp[j].status,
+			   QDF_MAC_ADDR_REF(info->timestamp[j].bssid.bytes));
 	}
 }
 
@@ -4164,11 +4183,6 @@ wlan_cm_update_roam_bssid(struct mlme_legacy_priv *mlme_priv,
 	for (i = scan_ap_idx; i >= 0; i--) {
 		if (ap->type == WLAN_ROAM_SCAN_CURRENT_AP)
 			qdf_mem_copy(info->scan.original_bssid.bytes,
-				     ap->bssid.bytes,
-				     QDF_MAC_ADDR_SIZE);
-		else if (ap->type == WLAN_ROAM_SCAN_CANDIDATE_AP &&
-			 qdf_is_macaddr_zero(&info->scan.candidate_bssid))
-			qdf_mem_copy(info->scan.candidate_bssid.bytes,
 				     ap->bssid.bytes,
 				     QDF_MAC_ADDR_SIZE);
 		else if (ap->type == WLAN_ROAM_SCAN_ROAMED_AP)
@@ -4712,6 +4726,43 @@ uint8_t wlan_cm_roam_get_full_scan_6ghz_on_disc(struct wlan_objmgr_psoc *psoc)
 	return mlme_obj->cfg.lfr.roam_full_scan_6ghz_on_disc;
 }
 
+void
+wlan_cm_set_roam_scan_high_rssi_offset(struct wlan_objmgr_psoc *psoc,
+				       uint8_t roam_high_rssi_delta)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return;
+
+	mlme_obj->cfg.lfr.roam_high_rssi_delta = roam_high_rssi_delta;
+}
+
+uint8_t
+wlan_cm_get_roam_scan_high_rssi_offset(struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj)
+		return 0;
+
+	return mlme_obj->cfg.lfr.roam_high_rssi_delta;
+}
+
+bool wlan_cm_is_mbo_ap_without_pmf(struct wlan_objmgr_psoc *psoc,
+				   uint8_t vdev_id)
+{
+	return cm_is_mbo_ap_without_pmf(psoc, vdev_id);
+}
+
+QDF_STATUS
+wlan_cm_roam_btm_block_event(uint8_t vdev_id, uint8_t token,
+			     enum wlan_diag_btm_block_reason reason)
+{
+	return cm_roam_btm_block_event(vdev_id, token, reason);
+}
 #else
 QDF_STATUS
 cm_roam_stats_event_handler(struct wlan_objmgr_psoc *psoc,
@@ -4884,19 +4935,30 @@ wlan_cm_set_assoc_btm_cap(struct wlan_objmgr_vdev *vdev, bool val)
 	mlme_priv->connect_info.assoc_btm_cap = val;
 }
 
-bool
-wlan_cm_get_assoc_btm_cap(struct wlan_objmgr_vdev *vdev)
+bool wlan_cm_get_assoc_btm_cap(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id)
 {
 	struct mlme_legacy_priv *mlme_priv;
+	struct wlan_objmgr_vdev *vdev;
+	bool assoc_btm_cap = true;
 
-	if (!vdev)
+	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc, vdev_id,
+						    WLAN_LEGACY_MAC_ID);
+	if (!vdev) {
+		mlme_err("vdev is NULL");
 		return true;
+	}
 
 	mlme_priv = wlan_vdev_mlme_get_ext_hdl(vdev);
-	if (!mlme_priv)
-		return true;
+	if (!mlme_priv) {
+		mlme_err("mlme_priv is NULL");
+		goto release_ref;
+	}
 
-	return mlme_priv->connect_info.assoc_btm_cap;
+	assoc_btm_cap = mlme_priv->connect_info.assoc_btm_cap;
+
+release_ref:
+	wlan_objmgr_vdev_release_ref(vdev, WLAN_LEGACY_MAC_ID);
+	return assoc_btm_cap;
 }
 
 bool wlan_cm_is_self_mld_roam_supported(struct wlan_objmgr_psoc *psoc)
@@ -4911,6 +4973,62 @@ bool wlan_cm_is_self_mld_roam_supported(struct wlan_objmgr_psoc *psoc)
 
 	return wmi_service_enabled(wmi_handle,
 				   wmi_service_self_mld_roam_between_dbs_and_hbs);
+}
+
+void
+wlan_cm_set_force_20mhz_in_24ghz(struct wlan_objmgr_vdev *vdev,
+				 bool is_40mhz_cap)
+{
+	struct wlan_objmgr_psoc *psoc;
+	struct wlan_mlme_psoc_ext_obj *mlme_obj;
+	struct mlme_legacy_priv *mlme_priv;
+	uint16_t dot11_mode;
+	bool send_ie_to_fw = false;
+
+	if (!vdev)
+		return;
+
+	psoc = wlan_vdev_get_psoc(vdev);
+	if (!psoc)
+		return;
+
+	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+	if (!mlme_obj || !mlme_obj->cfg.obss_ht40.is_override_ht20_40_24g)
+		return;
+
+	mlme_priv = wlan_vdev_mlme_get_ext_hdl(vdev);
+	if (!mlme_priv)
+		return;
+
+	/*
+	 * Force 20 MHz in 2.4 GHz only if "override_ht20_40_24g" ini
+	 * is set and userspace connect req doesn't have 40 MHz HT caps
+	 */
+	if (mlme_priv->connect_info.force_20mhz_in_24ghz != !is_40mhz_cap)
+		send_ie_to_fw = true;
+
+	mlme_priv->connect_info.force_20mhz_in_24ghz = !is_40mhz_cap;
+
+	if (cm_is_vdev_connected(vdev) && send_ie_to_fw) {
+		dot11_mode =
+			cm_csr_get_vdev_dot11_mode(wlan_vdev_get_id(vdev));
+		cm_send_ies_for_roam_invoke(vdev, dot11_mode);
+	}
+}
+
+bool
+wlan_cm_get_force_20mhz_in_24ghz(struct wlan_objmgr_vdev *vdev)
+{
+	struct mlme_legacy_priv *mlme_priv;
+
+	if (!vdev)
+		return true;
+
+	mlme_priv = wlan_vdev_mlme_get_ext_hdl(vdev);
+	if (!mlme_priv)
+		return true;
+
+	return mlme_priv->connect_info.force_20mhz_in_24ghz;
 }
 
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD

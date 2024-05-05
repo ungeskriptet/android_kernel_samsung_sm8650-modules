@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -967,6 +967,14 @@ QDF_STATUS wlan_dp_select_profile_cfg(struct wlan_objmgr_psoc *psoc)
 }
 #endif
 
+/**
+ * wlan_dp_link_cdp_vdev_delete_notification() - CDP vdev delete notification
+ * @context: osif_vdev handle
+ *
+ * Return: None
+ */
+void wlan_dp_link_cdp_vdev_delete_notification(void *context);
+
 /* DP CFG APIs - START */
 
 #ifdef WLAN_SUPPORT_RX_FISA
@@ -1009,4 +1017,14 @@ bool wlan_dp_cfg_is_rx_fisa_lru_del_enabled(struct wlan_dp_psoc_cfg *dp_cfg)
 
 
 /* DP CFG APIs - END */
+/**
+ * __wlan_dp_update_def_link() - update DP interface default link
+ * @psoc: psoc handle
+ * @intf_mac: interface MAC address
+ * @vdev: objmgr vdev handle to set the def_link in dp_intf
+ *
+ */
+void __wlan_dp_update_def_link(struct wlan_objmgr_psoc *psoc,
+			       struct qdf_mac_addr *intf_mac,
+			       struct wlan_objmgr_vdev *vdev);
 #endif

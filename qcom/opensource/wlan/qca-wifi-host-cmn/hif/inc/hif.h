@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1588,10 +1588,11 @@ QDF_STATUS hif_rtpm_sync_resume(void);
 /**
  * hif_rtpm_check_and_request_resume() - check if bus is suspended and
  *                                       request resume.
+ * @suspend_in_progress: Request resume if suspend is in progress
  *
  * Return: void
  */
-void hif_rtpm_check_and_request_resume(void);
+void hif_rtpm_check_and_request_resume(bool suspend_in_progress);
 
 /**
  * hif_rtpm_set_client_job() - Set job for the client.
@@ -1852,7 +1853,7 @@ void hif_rtpm_request_resume(void)
 {}
 
 static inline
-void hif_rtpm_check_and_request_resume(void)
+void hif_rtpm_check_and_request_resume(bool suspend_in_progress)
 {}
 
 static inline
@@ -2379,6 +2380,14 @@ hif_softc_to_hif_opaque_softc(struct hif_softc *hif_handle)
 {
 	return (struct hif_opaque_softc *)hif_handle;
 }
+
+/**
+ * hif_try_complete_dp_tasks() - Try to complete all DP related tasks
+ * @hif_ctx: opaque softc handle
+ *
+ * Return: QDF_STATUS of operation
+ */
+QDF_STATUS hif_try_complete_dp_tasks(struct hif_opaque_softc *hif_ctx);
 
 #if defined(HIF_IPCI) && defined(FEATURE_HAL_DELAYED_REG_WRITE)
 QDF_STATUS hif_try_prevent_ep_vote_access(struct hif_opaque_softc *hif_ctx);

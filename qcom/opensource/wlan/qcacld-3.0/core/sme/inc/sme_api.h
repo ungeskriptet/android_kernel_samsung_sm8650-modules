@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -762,14 +762,16 @@ QDF_STATUS sme_neighbor_report_request(mac_handle_t mac_handle,
 		tpRrmNeighborRspCallbackInfo callbackInfo);
 
 /**
- * sme_register_ssr_on_pagefault_cb() - Register cb to trigger SSR on pagefault
+ * sme_register_pagefault_cb() - Register cb to handle host action on pagefault
  * @mac_handle: Opaque handle to the global MAC context.
- * @hdd_ssr_on_pagefault_cb: Callback which needs to be registered
+ * @hdd_pagefault_action_cb: Callback which needs to be registered
  *
  * Return: None
  */
-void sme_register_ssr_on_pagefault_cb(mac_handle_t mac_handle,
-				      void (*hdd_ssr_on_pagefault_cb)(void));
+void
+sme_register_pagefault_cb(mac_handle_t mac_handle,
+			  QDF_STATUS (*hdd_pagefault_action_cb)(void *buf,
+								uint32_t buf_len));
 
 /**
  * sme_deregister_ssr_on_pagefault_cb() - Deregister cb to trigger SSR on
@@ -2911,14 +2913,13 @@ uint32_t sme_unpack_rsn_ie(mac_handle_t mac_handle, uint8_t *buf,
 /**
  * sme_unpack_assoc_rsp() - wrapper to unpack assoc response
  * @mac_handle: handle returned by mac_open
- * @frame: assoc response buffer pointer
- * @frame_len: assoc response buffer length
+ * @rsp: Pointer to connect rsp
  * @assoc_resp: output assoc response structure
  *
  * Return: parse status
  */
 QDF_STATUS sme_unpack_assoc_rsp(mac_handle_t mac_handle,
-				uint8_t *frame, uint32_t frame_len,
+				struct wlan_cm_connect_resp *rsp,
 				struct sDot11fAssocResponse *assoc_resp);
 
 /**

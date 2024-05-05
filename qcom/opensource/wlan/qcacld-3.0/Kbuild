@@ -6,6 +6,12 @@ else
 	KERNEL_BUILD := n
 endif
 
+ccflags-y += -I$(srctree)/../sm8650-modules/qcom/opensource/dataipa/drivers/platform/msm/include
+ccflags-y += -I$(srctree)/../sm8650-modules/qcom/opensource/dataipa/drivers/platform/msm/include/uapi
+
+# Force user build
+TARGET_BUILD_VARIANT := user
+
 ifeq ($(KERNEL_BUILD), y)
 	# These are provided in external module based builds
 	# Need to explicitly define for Kernel-based builds
@@ -1637,9 +1643,13 @@ MLME_OBJS += $(WFA_TGT_IF_DIR)/src/target_if_wfa_testcmd.o \
 ####### LL_SAP #######
 LL_SAP_DIR := components/umac/mlme/sap/ll_sap
 LL_SAP_OS_IF_DIR := os_if/mlme/sap/ll_sap
+LL_SAP_TARGET_IF_DIR := components/target_if/sap/ll_sap
+LL_SAP_WMI_DIR := components/wmi/
 
 LL_SAP_INC := -I$(WLAN_ROOT)/$(LL_SAP_DIR)/dispatcher/inc \
-		-I$(WLAN_ROOT)/$(LL_SAP_OS_IF_DIR)/inc
+		-I$(WLAN_ROOT)/$(LL_SAP_OS_IF_DIR)/inc \
+		-I$(WLAN_ROOT)/$(LL_SAP_TARGET_IF_DIR)/inc \
+		-I$(WLAN_ROOT)/$(LL_SAP_WMI_DIR)/inc
 
 MLME_INC += $(LL_SAP_INC)
 
@@ -1649,7 +1659,10 @@ MLME_OBJS += $(LL_SAP_DIR)/dispatcher/src/wlan_ll_sap_ucfg_api.o \
 		$(LL_SAP_DIR)/core/src/wlan_ll_sap_main.o \
 		$(LL_SAP_DIR)/core/src/wlan_ll_lt_sap_main.o \
 		$(LL_SAP_DIR)/core/src/wlan_ll_lt_sap_bearer_switch.o \
-		$(LL_SAP_OS_IF_DIR)/src/os_if_ll_sap.o
+		$(LL_SAP_OS_IF_DIR)/src/os_if_ll_sap.o \
+		$(LL_SAP_TARGET_IF_DIR)/src/target_if_ll_sap.o \
+		$(LL_SAP_WMI_DIR)/src/wmi_unified_ll_sap_api.o \
+		$(LL_SAP_WMI_DIR)/src/wmi_unified_ll_sap_tlv.o
 endif
 
 $(call add-wlan-objs,mlme,$(MLME_OBJS))
@@ -4065,6 +4078,9 @@ ccflags-$(CONFIG_FEATURE_WLAN_AP_AP_ACS_OPTIMIZE) += -DFEATURE_WLAN_AP_AP_ACS_OP
 #Enable 4address scheme
 ccflags-$(CONFIG_FEATURE_WLAN_STA_4ADDR_SCHEME) += -DFEATURE_WLAN_STA_4ADDR_SCHEME
 
+#Optimize GC connection speed by skipping JOIN
+ccflags-$(CONFIG_FEATURE_WLAN_GC_SKIP_JOIN) += -DFEATURE_WLAN_GC_SKIP_JOIN
+
 #enable MDM/SDX special config
 ccflags-$(CONFIG_MDM_PLATFORM) += -DMDM_PLATFORM
 
@@ -4304,6 +4320,7 @@ ccflags-$(CONFIG_WLAN_DP_SRNG_USAGE_WM_TRACKING) += -DWLAN_DP_SRNG_USAGE_WM_TRAC
 ccflags-$(CONFIG_WLAN_FEATURE_DP_CFG_EVENT_HISTORY) += -DWLAN_FEATURE_DP_CFG_EVENT_HISTORY
 ccflags-$(CONFIG_WLAN_DP_VDEV_NO_SELF_PEER) += -DWLAN_DP_VDEV_NO_SELF_PEER
 ccflags-$(CONFIG_DP_RX_MSDU_DONE_FAIL_HISTORY) += -DDP_RX_MSDU_DONE_FAIL_HISTORY
+ccflags-$(CONFIG_DP_RX_PEEK_MSDU_DONE_WAR) += -DDP_RX_PEEK_MSDU_DONE_WAR
 
 # Enable Low latency
 ccflags-$(CONFIG_WLAN_FEATURE_LL_MODE) += -DWLAN_FEATURE_LL_MODE
@@ -4326,6 +4343,9 @@ ccflags-$(CONFIG_WLAN_FEATURE_11BE) += -DWLAN_FEATURE_11BE
 ccflags-$(CONFIG_WLAN_FEATURE_11BE_MLO) += -DWLAN_FEATURE_11BE_MLO
 ccflags-$(CONFIG_WLAN_FEATURE_11BE_MLO) += -DWLAN_FEATURE_11BE_MLO_ADV_FEATURE
 ccflags-$(CONFIG_WLAN_HDD_MULTI_VDEV_SINGLE_NDEV) += -DWLAN_HDD_MULTI_VDEV_SINGLE_NDEV
+ifeq ($(CONFIG_WLAN_FEATURE_11BE_MLO), y)
+ccflags-$(CONFIG_WLAN_FEATURE_PEER_TRANS_HIST) += -DWLAN_FEATURE_PEER_TRANS_HIST
+endif
 ccflags-$(CONFIG_WLAN_FEATURE_11BE_MLO) += -DWLAN_SUPPORT_11BE_D3_0
 ccflags-$(CONFIG_FIX_TXDMA_LIMITATION) += -DFIX_TXDMA_LIMITATION
 ccflags-$(CONFIG_FEATURE_AST) += -DFEATURE_AST
@@ -4343,7 +4363,6 @@ ccflags-$(CONFIG_WLAN_FEATURE_NO_STA_SAP_CONCURRENCY) += -DWLAN_FEATURE_NO_STA_S
 ccflags-$(CONFIG_WLAN_FEATURE_NO_STA_NAN_CONCURRENCY) += -DWLAN_FEATURE_NO_STA_NAN_CONCURRENCY
 ccflags-$(CONFIG_WLAN_FEATURE_NO_P2P_CONCURRENCY) += -DWLAN_FEATURE_NO_P2P_CONCURRENCY
 ccflags-$(CONFIG_WLAN_FEATURE_NO_SAP_NAN_CONCURRENCY) += -DWLAN_FEATURE_NO_SAP_NAN_CONCURRENCY
-ccflags-$(CONFIG_WLAN_FEATURE_STA_SAP_P2P_CONCURRENCY) += -DWLAN_FEATURE_STA_SAP_P2P_CONCURRENCY
 
 ccflags-$(CONFIG_VERBOSE_DEBUG) += -DENABLE_VERBOSE_DEBUG
 ccflags-$(CONFIG_RX_DESC_DEBUG_CHECK) += -DRX_DESC_DEBUG_CHECK
@@ -4835,18 +4854,6 @@ ifdef CONFIG_MAX_CLIENTS_ALLOWED
 ccflags-y += -DWLAN_MAX_CLIENTS_ALLOWED=$(CONFIG_MAX_CLIENTS_ALLOWED)
 endif
 
-########## SAMSUNG FEATURE ###########
-ifeq ($(CONFIG_WLAN_SAMSUNG_FEATURE), y)
-EXTRA_CFLAGS += -DCONFIG_SEC
-EXTRA_CFLAGS += -DSEC_READ_MACADDR_SYSFS
-EXTRA_CFLAGS += -DSEC_CONFIG_PSM_SYSFS
-#EXTRA_CFLAGS += -DSEC_CONFIG_POWER_BACKOFF
-EXTRA_CFLAGS += -DSEC_WRITE_VERSION_IN_SYSFS
-EXTRA_CFLAGS += -DSEC_WRITE_SOFTAP_INFO_IN_SYSFS
-#EXTRA_CFLAGS += -DSEC_DUMP_IN_PROGRESS_IN_SYSFS
-EXTRA_CFLAGS += -DSEC_CONFIG_TWT
-endif
-
 ifeq ($(CONFIG_WLAN_FEATURE_RX_BUFFER_POOL), y)
 ccflags-y += -DWLAN_FEATURE_RX_PREALLOC_BUFFER_POOL
 ifdef CONFIG_DP_RX_BUFFER_POOL_SIZE
@@ -4919,6 +4926,11 @@ ccflags-$(CONFIG_WLAN_FEATURE_PEER_TXQ_FLUSH_CONF) += -DWLAN_FEATURE_PEER_TXQ_FL
 
 ifeq ($(CONFIG_DP_HW_TX_DELAY_STATS_ENABLE), y)
 ccflags-y += -DHW_TX_DELAY_STATS_ENABLE
+endif
+
+# Config MAX SAP interface number
+ifdef CONFIG_QDF_MAX_NO_OF_SAP_MODE
+ccflags-y += -DQDF_MAX_NO_OF_SAP_MODE=$(CONFIG_QDF_MAX_NO_OF_SAP_MODE)
 endif
 
 #Flags to enable/disable Dynamic WLAN interface control feature
