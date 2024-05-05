@@ -59,7 +59,7 @@ include $(KBUILD_EXTRA_CONFIGS)
 endif
 
 #sensor header path for adaptive mipi
-CAMERA_KERNEL_PATH = $(srctree)/../../vendor/qcom/opensource/camera-kernel
+CAMERA_KERNEL_PATH = $(srctree)/../sm8650-modules/qcom/opensource/camera-kernel
 
 ifeq ($(CONFIG_SEC_E1Q_PROJECT), y)
 SRC_WIDE_FILES = $(CAMERA_KERNEL_PATH)/drivers/cam_sensor_module/cam_sensor/adaptive_mipi/cam_sensor_adaptive_mipi_s5kgn3_2_0.h
